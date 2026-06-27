@@ -213,6 +213,620 @@ textarea{resize:vertical;min-height:70px}
       <div class="rings" id="statRings"></div>
       <div class="range-row" id="effRange"></div>
       <canvas id="effChart" height="200"></canvas>
+      <div id="effHint" style="text-align:center;font-size:10px;color:var(--mu);font-family:monospace;margin-top:6px;letter-spacing:.5px">tap a point for that day's details</div>
+      <div id="effEmpty" class="chart-empty" style="display:none"><div class="ei">⛽</div>Add at least 2 full-tank fill-ups to see km/L over time</div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Reminders</div>
+      <div id="topReminders"></div>
+      <button class="showall" onclick="showView('tasks')">View all tasks →</button>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Recent Activity</div>
+      <div id="recentLog"></div>
+      <button class="showall" onclick="showView('history')">View full history →</button>
+    </div>
+  </div>
+
+  <!-- INSIGHTS -->
+  <div class="pg" id="pg-insights">
+    <div class="ph"><div><h2>Insights</h2><p>time · fuel · money</p></div></div>
+    <div class="range-row" id="insRange"></div>
+    <div class="sgrid" id="insStats"></div>
+    <div class="panel"><div class="ptitle">Monthly Spending</div><canvas id="insBar" height="190"></canvas><div id="insBarE" class="chart-empty" style="display:none"><div class="ei">📈</div>Log fuel & services to see spending</div></div>
+    <div class="panel"><div class="ptitle">Spend by Category</div><canvas id="insPie" height="210"></canvas><div id="insPieE" class="chart-empty" style="display:none"><div class="ei">📊</div>No costs logged yet</div></div>
+    <div class="panel"><div class="ptitle">Fuel Price Trend</div><canvas id="insPrice" height="180"></canvas><div id="insPriceE" class="chart-empty" style="display:none"><div class="ei">💴</div>Add fuel with price to see ¥/L trend</div></div>
+  </div>
+</div>
+
+<!-- TASKS VIEW -->
+<div class="view" id="view-tasks">
+  <div class="pg on" style="padding-top:0">
+    <div class="ph"><div><h2>Tasks</h2><p>sorted by urgency</p></div></div>
+    <button class="add-task-btn" onclick="openTaskEditor(null)">+ Add Custom Task</button>
+    <div id="allTasks"></div>
+  </div>
+</div>
+
+<!-- HISTORY VIEW -->
+<div class="view" id="view-history">
+  <div class="pg on" style="padding-top:0">
+    <div class="ph"><div><h2>History</h2><p>all fuel & services</p></div></div>
+    <div id="fullHistory"></div>
+  </div>
+</div>
+
+<!-- FAB -->
+<div class="fab-menu" id="fabMenu">
+  <div class="fab-item"><span class="fl">Add Fuel</span><button class="fb" style="background:linear-gradient(135deg,#f43f5e,#be123c);color:#fff" onclick="openFillup()">⛽</button></div>
+  <div class="fab-item"><span class="fl">Add Service</span><button class="fb" style="background:linear-gradient(135deg,#a855f7,#7e22ce);color:#fff" onclick="openServicePicker()">🔧</button></div>
+</div>
+<button id="fab" onclick="toggleFab()">+</button>
+
+<!-- BOTTOM NAV -->
+<div id="bnav">
+  <button class="on" id="bn-home" onclick="showView('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>Home</button>
+  <button id="bn-tasks" onclick="showView('tasks')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</button>
+  <button id="bn-history" onclick="showView('history')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>History</button>
+</div>
+
+<!-- SHEET -->
+<div id="scrim2" onclick="closeSheet()"></div>
+<div id="sheet"><div class="handle"></div><div id="sheetBody"></div></div>
+
+<!-- FUEL DIALOG -->
+<div class="dlg" id="fillDlg"><div class="box">
+  <h3>⛽ Add Fuel</h3>
+  <div class="fg"><label>Date</label><input type="date" id="fDate"></div>
+  <div class="frow"><div class="fg"><label>Odometer km</label><input type="number" id="fOdo" inputmode="numeric"></div><div class="fg"><label>Quantity (L)</label><input type="number" id="fQty" inputmode="decimal" step="0.01"></div></div>
+  <div class="frow"><div class="fg"><label>Price/L (¥)</label><input type="number" id="fPrice" inputmode="decimal" step="0.01"></div><div class="fg"><label>Total (¥)</label><input type="number" id="fTotal" inputmode="numeric"></div></div>
+  <div class="toggle-row"><input type="checkbox" id="fPartial"><label for="fPartial">Partial tank (excluded from km/L)</label></div>
+  <div class="fg"><label>Station / Notes</label><input type="text" id="fNotes" placeholder="optional"></div>
+  <button class="btn bp" onclick="saveFillup()">Save Fuel</button>
+  <button class="btn bs" onclick="closeFill()">Cancel</button>
+</div></div>
+
+<!-- SERVICE PICKER -->
+<div class="dlg" id="svcDlg"><div class="box">
+  <h3>🔧 Add Service</h3>
+  <div class="fg"><label>Which task?</label><select id="svcPick"></select></div>
+  <button class="btn bp" onclick="openServiceFromPicker()">Continue</button>
+  <button class="btn bs" onclick="closeSvcPick()">Cancel</button>
+</div></div>
+
+<!-- POINT DETAIL POPUP -->
+<div class="dlg" id="ptDlg" style="align-items:center" onclick="if(event.target===this)closePt()"><div class="box" style="max-width:330px;border-radius:18px;border-bottom:1px solid var(--bd2)">
+  <div id="ptBody"></div>
+  <button class="btn bs" style="margin-top:16px" onclick="closePt()">Close</button>
+</div></div>
+
+<!-- CAR EDITOR -->
+<div class="dlg" id="carDlg"><div class="box">
+  <h3>🚗 Edit Vehicle</h3>
+  <div class="fg"><label>Name / Model</label><input type="text" id="cName" placeholder="e.g. Nissan Serena"></div>
+  <div class="fg"><label>Details (chassis · year · engine)</label><input type="text" id="cSub" placeholder="e.g. C26 · 2011 · MR20DD"></div>
+  <div class="fg"><label>Icon (emoji)</label><input type="text" id="cIco" maxlength="2" placeholder="🚐"></div>
+  <div class="fg"><label>Current odometer (km)</label><input type="number" id="cOdo" inputmode="numeric"></div>
+  <button class="btn bp" onclick="saveCar()">Save</button>
+  <button class="btn bs" onclick="closeCarEditor()">Cancel</button>
+</div></div>
+
+<!-- TASK EDITOR -->
+<div class="dlg" id="taskDlg"><div class="box">
+  <h3 id="taskDlgTitle">Add Task</h3>
+  <div class="fg"><label>Task name</label><input type="text" id="tName" placeholder="e.g. Timing inspection"></div>
+  <div class="fg"><label>Product / details</label><input type="text" id="tProd" placeholder="e.g. brand, part number"></div>
+  <div class="frow"><div class="fg"><label>Every (km)</label><input type="number" id="tKm" inputmode="numeric" placeholder="e.g. 10000"></div><div class="fg"><label>Every (months)</label><input type="number" id="tMo" inputmode="numeric" placeholder="e.g. 12"></div></div>
+  <div class="fg"><label>Icon (emoji)</label><input type="text" id="tIco" maxlength="2" placeholder="🔧"></div>
+  <div class="fg"><label>How-to / notes</label><textarea id="tDesc" placeholder="Steps, specs, anything useful..."></textarea></div>
+  <button class="btn bp" onclick="saveTask()">Save Task</button>
+  <button class="btn bd" id="tDelBtn" style="display:none" onclick="deleteTask()">Delete Task</button>
+  <button class="btn bs" onclick="closeTaskEditor()">Cancel</button>
+</div></div>
+
+<script>
+// ════════ DATA ════════
+var ITEMS = [
+  {id:'engine_oil',name:'Engine Oil',ico:'🛢️',col:'#22d3ee',prod:'Castrol EDGE 5W-30 or Mobil 1 5W-30 (API SN+)',iKm:10000,iMo:6,
+   desc:'Spec: 5W-30 fully synthetic, API SN or SN+\nCapacity: ~4.2–4.5L with filter\n\nHOW TO CHANGE:\n1. Warm engine 3–5 min, then off\n2. Remove drain plug (17mm) — drain fully\n3. New copper washer. Torque 25–30 Nm\n4. Remove old oil filter\n5. Oil the new filter gasket lightly\n6. Hand-tight + 3/4 turn\n7. Fill 4.0L, dipstick to MAX\n8. Start, check leaks, recheck\n\n⚠️ Do NOT overfill.'},
+  {id:'oil_filter',name:'Oil Filter',ico:'🔩',col:'#0891b2',prod:'Nissan OEM 15208-65F0E or Bosch 0451103340',iKm:10000,iMo:6,
+   desc:'Replace WITH engine oil. Never skip.\n\n• Nissan OEM: 15208-65F0E\n• Bosch: 0451103340\n• Mann: HU 720/4 x\n\nLower engine block, from underneath.\n⚠️ Old gasket ring must come off WITH filter.'},
+  {id:'cvt_fluid',name:'CVT Fluid',ico:'⚙️',col:'#f43f5e',prod:'Genuine Nissan CVT Fluid NS-2 (or NS-3)',iKm:90000,iMo:60,
+   desc:'⚠️ CRITICAL — NEVER use generic ATF.\nWrong fluid destroys the CVT.\n\nNS-2 / NS-3 ONLY\nDrain & refill ~4.0L | Full 7.4L\n\n1. Warm, then off\n2. Drain plug, NEW copper washer\n3. Torque ~35 Nm\n4. Fill via dipstick tube, 0.5L steps\n5. Shift P→R→N→D→L→P\n6. Between HOT marks\n\nAT 90,000 km — CHANGE NOW.'},
+  {id:'coolant',name:'Engine Coolant',ico:'🌡️',col:'#34d399',prod:'Nissan Long Life Coolant — 50/50 distilled',iKm:90000,iMo:60,
+   desc:'First 90,000km/60mo, then 60,000km/48mo\n\n⚠️ Silicate-free, aluminum-safe. No color mixing.\n⚠️ DISTILLED water only. ~7.5–8.0L\n\n1. COLD engine only!\n2. Lower radiator hose to drain\n3. Refill 50/50 mix\n4. Cap off, run, burp via upper hose\n5. Top to MAX\n\nAT 90,000 km — CHANGE NOW.'},
+  {id:'brake_fluid',name:'Brake Fluid',ico:'🛑',col:'#f43f5e',prod:'DOT 3 or DOT 4 (check reservoir cap)',iKm:40000,iMo:24,
+   desc:'⚠️ SAFETY. Absorbs moisture → fade.\n~0.7–1.0L. Bleed: RR→RL→FR→FL\n\n1. Top master cylinder\n2. Clear tube on nipple\n3. Helper pumps pedal\n4. Open nipple, fluid out\n5. Close before pedal returns\n6. Never let reservoir dry\n7. Repeat till clear\n\nChange NOW — 14+ yrs old.'},
+  {id:'spark_plugs',name:'Spark Plugs',ico:'⚡',col:'#fbbf24',prod:'NGK ILKR7E iridium or Denso SK20HR11 — qty 4',iKm:60000,iMo:48,
+   desc:'4 plugs. M12×1.25 | 14mm | Gap 1.0–1.1mm\nIridium lasts 60–100k km.\n⚠️ Replace if gap > 1.25mm.\n\n1. Cold. Remove engine cover\n2. Disconnect each coil (pull up)\n3. 14mm plug socket\n4. Check gap, inspect\n5. Hand-tight + 1/4–1/2 turn\n6. Reconnect coils (click)\n\nDo NOT swap coils.'},
+  {id:'cabin_filter',name:'AC Cabin Filter',ico:'💨',col:'#34d399',prod:'Denso DCF-099 or Nissan OEM 27277-9UB0A',iKm:15000,iMo:12,
+   desc:'Replace early if weak airflow, foggy windows, musty smell.\n\nNO TOOLS:\n1. Open glove box\n2. Squeeze sides, let hang down\n3. Squeeze housing tab, pull out\n4. Note airflow arrow\n5. New filter arrow DOWN\n6. Snap back\n\n~5 min.'},
+  {id:'engine_filter',name:'Engine Air Filter',ico:'🌬️',col:'#5f6e88',prod:'Nissan OEM 16546-ET81A or Mann C25114/1',iKm:30000,iMo:12,
+   desc:'Clogged = less power & economy.\n\n1. Open hood\n2. Black air box top-left\n3. Unclip 4–6 clips\n4. Pull old filter\n5. Wipe housing DRY\n6. New filter (fits one way)\n7. Reclip\n\nInspect every oil change.'},
+  {id:'brake_pads',name:'Brake Pads',ico:'🔴',col:'#f43f5e',prod:'Akebono AN-574K front / AN-575K rear',iKm:40000,iMo:36,
+   desc:'FWD: fronts wear ~2× faster.\nInspect every 20,000km. Replace < 3mm.\n\nVia wheel spokes — pad vs rotor.\nSquealing tab = replace.\n\nALSO: rotor grooves, min thickness, warping (shudder), caliper free move.\n\nAt 90,000 km: inspect now.'},
+  {id:'tires',name:'Tires',ico:'🔵',col:'#60a5fa',prod:'Bridgestone Ecopia EP150 — 195/65R15',iKm:15000,iMo:6,isInsp:true,
+   desc:'Size 195/65R15 (door jamb).\n\n1. TREAD < 3mm replace (coin test)\n2. AGE: DOT WWYY. Over 5–6yrs replace.\n   ⚠️ 2011 original tires DANGEROUS.\n3. PRESSURE cold: F230/R210 kPa\n4. ROTATE every 10–15k km\n5. ALIGN if pulling/curb hit'},
+  {id:'wipers',name:'Wiper Blades',ico:'🌧️',col:'#60a5fa',prod:'PIAA Si-Tech 600mm + 400mm',iKm:20000,iMo:12,
+   desc:'Silicone lasts 2–3× longer.\nDriver 600mm | Passenger 400mm\n\n1. Lift arm off glass\n2. Press release tab\n3. Rotate & slide off\n4. New blade until CLICK\n5. Lower gently (do not snap!)\n\n⚠️ Serena also has a REAR wiper!'},
+  {id:'battery',name:'Car Battery',ico:'🔋',col:'#34d399',prod:'Panasonic Blue 65B24L or Bosch S4 55B24L',iKm:60000,iMo:48,
+   desc:'Life 3–5 yrs. Weak = CVT hesitation.\nFree load test at parts shops.\n\n1. OFF, wait 5 min\n2. Disconnect NEG (–) first\n3. Clamp bolt (10mm)\n4. Lift out (~12kg)\n5. Connect POS (+) first\n6. Tighten firmly\n\n⚠️ Recalibrates first few km — normal.\nSpec: 55B24L / 65B24L.'},
+  {id:'cv_boots',name:'CV Axle Boots',ico:'🔧',col:'#fb923c',prod:'Nissan OEM CV boot kit or TRW JBB5020',iKm:30000,iMo:24,isInsp:true,
+   desc:'FWD specific. Boots keep grease in.\n\nTorn boot → CV joint dies in weeks.\nBoot ~¥3,000 vs joint ~¥30,000+.\n\n1. Look inside front wheels/axles\n2. Black grease splatter = torn\n3. Flex boot: cracks = replace\n4. 4 boots (inner+outer, both sides)\n\nInspect every 30,000 km.'},
+  {id:'drive_belt',name:'Drive Belt',ico:'〰️',col:'#5f6e88',prod:'Bando 4PK850 or Gates K040335',iKm:60000,iMo:48,
+   desc:'Drives alternator, AC, steering.\n\n⚠️ Engine uses TIMING CHAIN (not belt). No scheduled change — keep oil fresh.\n\nINSPECT accessory belt:\n1. Cold, hood open\n2. Ribbed belt on front pulleys\n3. Cracks, fraying, glazing = replace\n4. Tensioner stuck/maxed = replace\n\nReplace 60,000 km or any damage.'}
+];
+
+var S={odo:90000,car:{name:'Nissan Serena',sub:'C26 · 2011 · MR20DD',ico:'🚐'},items:[],logs:[],fills:[]};
+var activeId=null,fabOpen=false,effRangeSel='30',insRangeSel='all',editingTaskId=null;
+
+function save(){try{localStorage.setItem('doctorcar',JSON.stringify(S));}catch(e){}}
+function load(){
+  try{
+    var r=localStorage.getItem('doctorcar')||localStorage.getItem('kurdkar')||localStorage.getItem('micoche');
+    if(r){S=JSON.parse(r);}
+    if(!S.fills)S.fills=[];if(!S.logs)S.logs=[];
+    if(!S.car)S.car={name:'Nissan Serena',sub:'C26 · 2011 · MR20DD',ico:'🚐'};
+    ITEMS.forEach(function(d){if(!S.items.find(function(i){return i.id===d.id;}))S.items.push(Object.assign({},d,{lKm:null,lDate:null}));});
+  }catch(e){init();}
+  if(!S.items||!S.items.length)init();
+}
+function init(){S.items=ITEMS.map(function(d){return Object.assign({},d,{lKm:null,lDate:null});});}
+
+// ════════ HELPERS ════════
+function fn(n){return Number(Math.round(n)).toLocaleString();}
+function fd(s){if(!s)return'—';var d=new Date(s);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
+function moDiff(s){if(!s)return null;var t=new Date(s),n=new Date();return(n.getFullYear()-t.getFullYear())*12+(n.getMonth()-t.getMonth());}
+function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function status(it){if(!it.lKm&&!it.lDate)return'never';var kp=it.lKm&&it.iKm?(S.odo-it.lKm)/it.iKm:0;var mp=it.lDate&&it.iMo?moDiff(it.lDate)/it.iMo:0;var p=Math.max(kp,mp);if(p>=1)return'due';if(p>=.75)return'warn';return'ok';}
+function pct(it){if(!it.lKm&&!it.lDate)return 100;var kp=it.lKm&&it.iKm?(S.odo-it.lKm)/it.iKm:0;var mp=it.lDate&&it.iMo?moDiff(it.lDate)/it.iMo:0;return Math.min(Math.max(kp,mp)*100,100);}
+function barColor(p){if(p>=95)return'#f43f5e';if(p>=50)return'#fbbf24';return'#34d399';}
+function dueText(it){if(!it.lKm&&!it.lDate)return'Never serviced';var parts=[];if(it.lKm&&it.iKm){var kl=it.iKm-(S.odo-it.lKm);parts.push(kl<=0?fn(Math.abs(kl))+'km over':fn(kl)+'km');}if(it.lDate&&it.iMo){var ml=it.iMo-moDiff(it.lDate);parts.push(ml<=0?Math.abs(ml)+'mo over':ml+'mo');}return 'Due in: '+(parts.join(' / ')||'—');}
+function sortedItems(){return [].concat(S.items).sort(function(a,b){var na=(!a.lKm&&!a.lDate)?1:0,nb=(!b.lKm&&!b.lDate)?1:0;if(na!==nb)return nb-na;return pct(b)-pct(a);});}
+function computeEff(){
+  // Correct fuel-economy: accumulate distance & liters across partial fills,
+  // only emit a km/L point at a FULL fill (tank-to-tank measurement).
+  var fills=[].concat(S.fills).filter(function(f){return f.qty>0&&f.odo>0;}).sort(function(a,b){return a.odo-b.odo;});
+  var pts=[];
+  var accDist=0, accLiters=0, haveBaseline=false, prevOdo=0;
+  for(var i=0;i<fills.length;i++){
+    var f=fills[i];
+    if(!haveBaseline){
+      // first usable fill establishes the starting odometer; its own fuel isn't measurable yet
+      haveBaseline=true; prevOdo=f.odo; continue;
+    }
+    var dist=f.odo-prevOdo;
+    if(dist<=0){prevOdo=f.odo; continue;} // ignore bad/duplicate odo
+    accDist+=dist;
+    accLiters+=f.qty;
+    prevOdo=f.odo;
+    if(f.partial){
+      // tank not full yet — keep accumulating into the next fill
+      continue;
+    }
+    // full fill: we now have a complete tank-to-tank measurement
+    if(accLiters>0){
+      pts.push({date:f.date,odo:f.odo,eff:accDist/accLiters,dist:accDist,liters:accLiters,total:f.total||0});
+    }
+    accDist=0; accLiters=0;
+  }
+  return pts;
+}
+
+// ════════ NAV ════════
+var drawerItems=[{v:'home',label:'Home',ico:'<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>'},{v:'tasks',label:'Tasks',ico:'<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>'},{v:'history',label:'History',ico:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/>'}];
+function buildDrawer(){var h='<div class="lbl">Menu</div>';drawerItems.forEach(function(d){h+='<button data-v="'+d.v+'" onclick="showView(\''+d.v+'\');closeDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+d.ico+'</svg>'+d.label+'</button>';});h+='<div class="sep"></div><div class="lbl">Quick Add</div>';h+='<button onclick="closeDrawer();openFillup()"><svg viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2"><path d="M3 22h12V11l-3-3V3H6v5L3 11z"/></svg>Add Fuel</button>';h+='<button onclick="closeDrawer();openServicePicker()"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M14 7l3 3-7 7-3-3z"/></svg>Add Service</button>';h+='<div class="sep"></div><div class="lbl">Data</div>';h+='<button onclick="closeDrawer();exportData()"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Export backup</button>';h+='<button onclick="document.getElementById(\'importFile\').click()"><svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M4 19h16"/></svg>Import backup</button>';document.getElementById('drawerNav').innerHTML=h;}
+function openDrawer(){document.getElementById('scrim').classList.add('on');document.getElementById('drawer').classList.add('on');}
+function closeDrawer(){document.getElementById('scrim').classList.remove('on');document.getElementById('drawer').classList.remove('on');}
+function showView(v){document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});document.getElementById('view-'+v).classList.add('on');document.querySelectorAll('#bnav button').forEach(function(b){b.classList.remove('on');});var bn=document.getElementById('bn-'+v);if(bn)bn.classList.add('on');document.querySelectorAll('#drawerNav button[data-v]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});if(v==='home')renderDash();if(v==='tasks')renderAllTasks();if(v==='history')renderFullHistory();window.scrollTo(0,0);closeFab();}
+function showTab(t){document.getElementById('pg-dash').classList.toggle('on',t==='dash');document.getElementById('pg-insights').classList.toggle('on',t==='insights');document.getElementById('tab-dash').classList.toggle('on',t==='dash');document.getElementById('tab-insights').classList.toggle('on',t==='insights');if(t==='dash')renderDash();if(t==='insights')renderInsights();window.scrollTo(0,0);}
+
+// ════════ DASHBOARD ════════
+function ringSVG(p,color){var r=38,c=2*Math.PI*r,off=c*(1-Math.min(p,100)/100);return '<svg width="88" height="88" viewBox="0 0 88 88"><circle cx="44" cy="44" r="'+r+'" fill="none" stroke="#131927" stroke-width="6"/><circle cx="44" cy="44" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" style="filter:drop-shadow(0 0 4px '+color+'88)"/></svg>';}
+function ringWrap(val,col,p,lbl){return '<div class="ring-wrap"><div class="ring">'+ringSVG(p,col)+'<div class="rval" style="color:'+col+'">'+val+'</div></div><div class="ring-lbl">'+lbl+'</div></div>';}
+function renderDash(){
+  var cutoff=null,rangeLbl='all time';
+  if(effRangeSel!=='all'){cutoff=new Date();cutoff.setDate(cutoff.getDate()-parseInt(effRangeSel));rangeLbl='last '+effRangeSel+' days';}
+  function inR(d){return !cutoff||new Date(d)>=cutoff;}
+  var fuelCost=0,fillCount=0;S.fills.forEach(function(f){if(inR(f.date)){fuelCost+=(f.total||0);fillCount++;}});
+  var eff=computeEff();var rEff=eff.filter(function(e){return inR(e.date);});
+  var avgEff=rEff.length?rEff.reduce(function(s,e){return s+e.eff;},0)/rEff.length:0;
+  document.getElementById('statRings').innerHTML=ringWrap(fuelCost>0?'¥'+fn(fuelCost):'¥0','#34d399',Math.min(fuelCost/10000*100,100),'Fuel cost<br>'+rangeLbl)+ringWrap(avgEff?avgEff.toFixed(1):'—','#22d3ee',avgEff?Math.min(avgEff/20*100,100):0,'Average<br>km/L')+ringWrap(fillCount,'#a855f7',Math.min(fillCount/8*100,100),'Fill-ups<br>'+rangeLbl);
+  buildRangeRow('effRange',effRangeSel,function(v){effRangeSel=v;renderDash();});drawEffChart();
+  var top=sortedItems().slice(0,3);
+  document.getElementById('topReminders').innerHTML=top.map(remHTML).join('');
+  document.querySelectorAll('#topReminders .rem').forEach(function(el){el.onclick=function(){openDetail(el.getAttribute('data-id'));};});
+  renderRecentLog();
+}
+function remHTML(it){var p=pct(it),col=barColor(p);return '<div class="rem" data-id="'+it.id+'"><div class="rem-name">'+escHtml(it.name)+' <small>('+escHtml(it.prod.split(' or ')[0])+')</small><span class="rem-ico">'+it.ico+'</span></div><div class="rem-due">'+dueText(it)+'</div><div class="rbar"><div class="rfill" style="width:'+p+'%;background:'+col+';box-shadow:0 0 8px '+col+'88"></div></div></div>';}
+function renderRecentLog(){
+  var entries=[];
+  S.fills.forEach(function(f){entries.push({type:'fill',date:f.date,odo:f.odo,sub:(f.qty||0)+' L',cost:f.total,id:f.id});});
+  S.logs.forEach(function(l){var it=S.items.find(function(i){return i.id===l.itemId;});entries.push({type:'svc',date:l.date,odo:l.odometer,sub:it?it.name:l.itemId,cost:l.cost,ico:it?it.ico:'🔧',id:l.id});});
+  entries.sort(function(a,b){return new Date(b.date)-new Date(a.date)||b.odo-a.odo;});
+  var recent=entries.slice(0,4),el=document.getElementById('recentLog');
+  if(!recent.length){el.innerHTML='<div class="empty"><div class="ei">📋</div>No entries yet. Tap + to add fuel or a service.</div>';return;}
+  var effMap={};computeEff().forEach(function(e){effMap[e.odo]=e.eff;});
+  el.innerHTML=recent.map(function(e){var bg=e.type==='fill'?'rgba(244,63,94,.15)':'rgba(168,85,247,.15)';var ico=e.type==='fill'?'⛽':(e.ico||'🔧');var effTxt=e.type==='fill'&&effMap[e.odo]?effMap[e.odo].toFixed(1)+' km/L':'';return '<div class="rlog"><div class="rlog-ico" style="background:'+bg+'">'+ico+'</div><div class="rlog-mid"><div class="rlog-date">'+fd(e.date)+'</div><div class="rlog-odo">Odo '+fn(e.odo)+' · '+escHtml(e.sub)+'</div></div><div class="rlog-right">'+(e.cost?'<div class="rlog-cost">¥'+fn(e.cost)+'</div>':'')+(effTxt?'<div class="rlog-eff">'+effTxt+'</div>':'')+'</div></div>';}).join('');
+}
+
+// ════════ RANGE / BUCKET ════════
+function buildRangeRow(elId,sel,cb){var ranges=[['7','7d'],['30','30d'],['90','90d'],['365','1y'],['all','All']];var el=document.getElementById(elId);el.innerHTML=ranges.map(function(r){return '<button class="'+(sel===r[0]?'on':'')+'" data-r="'+r[0]+'">'+r[1]+'</button>';}).join('');el.querySelectorAll('button').forEach(function(b){b.onclick=function(){cb(b.getAttribute('data-r'));};});}
+function bucketByRange(points,range){
+  var cutoff=null;if(range!=='all'){cutoff=new Date();cutoff.setDate(cutoff.getDate()-parseInt(range));}
+  var filtered=points.filter(function(p){return !cutoff||new Date(p.date)>=cutoff;});
+  if(!filtered.length)return{labels:[],values:[],meta:[]};
+  var spanDays=range==='all'?(filtered.length>1?(new Date(filtered[filtered.length-1].date)-new Date(filtered[0].date))/86400000:0):parseInt(range);
+  var mode=spanDays<=92?'day':spanDays<=731?'month':'year';
+  if(mode==='day'){
+    // plot each actual data point individually (no averaging) so short ranges aren't clumpy
+    var sorted=filtered.slice().sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+    return {
+      labels:sorted.map(function(p){return new Date(p.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'});}),
+      values:sorted.map(function(p){return p.val;}),
+      meta:sorted.map(function(p){return p;})
+    };
+  }
+  // month/year: aggregate (average for rates, but keep count & sum in meta)
+  var groups={};
+  filtered.forEach(function(p){var d=new Date(p.date),key;if(mode==='month')key=d.toISOString().slice(0,7);else key=''+d.getFullYear();if(!groups[key])groups[key]=[];groups[key].push(p);});
+  var keys=Object.keys(groups).sort();
+  var labels=keys.map(function(k){if(mode==='month'){var mm=new Date(k+'-01');return mm.toLocaleDateString('en-GB',{month:'short',year:'2-digit'});}return k;});
+  var values=keys.map(function(k){var arr=groups[k];return arr.reduce(function(s,p){return s+p.val;},0)/arr.length;});
+  var meta=keys.map(function(k){var arr=groups[k];return {date:k,val:arr.reduce(function(s,p){return s+p.val;},0)/arr.length,count:arr.length,bucket:mode,items:arr};});
+  return {labels:labels,values:values,meta:meta};
+}
+
+// ════════ CHARTS ════════
+function setupCanvas(canvas,h){var dpr=window.devicePixelRatio||1;var W=canvas.parentElement.clientWidth-2;if(W<60)W=Math.max(window.innerWidth-58,260);canvas.style.width=W+'px';canvas.style.height=h+'px';canvas.width=W*dpr;canvas.height=h*dpr;var ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,h);return{ctx:ctx,W:W,H:h};}
+function lineChart(canvas,emptyEl,labels,values,color,meta,onTap){if(!values.length){canvas.style.display='none';emptyEl.style.display='block';return;}canvas.style.display='block';emptyEl.style.display='none';var s=setupCanvas(canvas,200),ctx=s.ctx,W=s.W,H=s.H;var pad={t:14,b:34,l:46,r:14};var maxV=Math.max.apply(null,values),minV=Math.min.apply(null,values);var range=maxV-minV;if(range<0.001){maxV+=Math.max(maxV*0.2,1);minV=Math.max(0,minV-Math.max(minV*0.2,1));}else{maxV+=range*0.15;minV=Math.max(0,minV-range*0.15);}range=maxV-minV||1;ctx.strokeStyle='#1e2738';ctx.lineWidth=1;ctx.fillStyle='#5f6e88';ctx.font='9px monospace';for(var g=0;g<=4;g++){var gy=pad.t+(H-pad.t-pad.b)*g/4;ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(W-pad.r,gy);ctx.stroke();ctx.textAlign='right';ctx.fillText((maxV-range*g/4).toFixed(1),pad.l-4,gy+3);}var n=values.length,xStep=n>1?(W-pad.l-pad.r)/(n-1):0;function px(i){return n>1?pad.l+i*xStep:(pad.l+(W-pad.r))/2;}function py(v){return pad.t+(H-pad.t-pad.b)*(1-(v-minV)/range);}if(n>1){ctx.beginPath();ctx.moveTo(px(0),py(values[0]));values.forEach(function(v,i){ctx.lineTo(px(i),py(v));});ctx.lineTo(px(n-1),H-pad.b);ctx.lineTo(px(0),H-pad.b);ctx.closePath();ctx.fillStyle=color+'1f';ctx.fill();ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2.5;values.forEach(function(v,i){i?ctx.lineTo(px(i),py(v)):ctx.moveTo(px(i),py(v));});ctx.stroke();}else{ctx.beginPath();ctx.strokeStyle=color+'66';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);ctx.moveTo(pad.l,py(values[0]));ctx.lineTo(W-pad.r,py(values[0]));ctx.stroke();ctx.setLineDash([]);}ctx.fillStyle=color;var hit=[];values.forEach(function(v,i){var X=px(i),Y=py(v);ctx.beginPath();ctx.arc(X,Y,n>1?4:5,0,7);ctx.fill();hit.push({x:X,y:Y,i:i});});if(n===1){ctx.fillStyle=color;ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.fillText(values[0].toFixed(1),px(0),py(values[0])-12);}ctx.fillStyle='#5f6e88';ctx.font='9px monospace';ctx.textAlign='center';var skip=Math.ceil(n/6);labels.forEach(function(l,i){if(i%skip===0||i===n-1)ctx.fillText(l,px(i),H-pad.b+14);});
+  // tap handling
+  if(onTap&&meta){
+    canvas.onclick=function(e){
+      var rect=canvas.getBoundingClientRect();
+      var cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+      var best=null,bd=1e9;
+      hit.forEach(function(h){var dx=h.x-cx,dy=h.y-cy,d=dx*dx+dy*dy;if(d<bd){bd=d;best=h;}});
+      if(best&&bd<2500){ // within ~50px
+        onTap(meta[best.i],values[best.i]);
+      }
+    };
+    canvas.style.cursor='pointer';
+  }
+}
+function drawEffChart(){requestAnimationFrame(function(){var eff=computeEff();var pts=eff.map(function(e){return{date:e.date,val:e.eff,dist:e.dist,liters:e.liters,total:e.total,odo:e.odo};});var b=bucketByRange(pts,effRangeSel);var hint=document.getElementById('effHint');if(hint)hint.style.display=b.values.length?'block':'none';lineChart(document.getElementById('effChart'),document.getElementById('effEmpty'),b.labels,b.values,'#22d3ee',b.meta,function(m,v){showPointDetail('km/L',m,v,'#22d3ee');});});}
+// Point detail popup
+function showPointDetail(kind,m,v,color){
+  var html='';
+  if(m.bucket){ // aggregated month/year
+    var dlabel=m.bucket==='month'?new Date(m.date+'-01').toLocaleDateString('en-GB',{month:'long',year:'numeric'}):m.date;
+    html='<div style="font-size:12px;color:var(--mu);font-family:monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">'+dlabel+'</div>';
+    html+='<div style="font-size:28px;font-weight:800;font-family:monospace;color:'+color+'">'+v.toFixed(1)+(kind==='km/L'?' <span style="font-size:14px">km/L</span>':' <span style="font-size:14px">¥/L</span>')+'</div>';
+    html+='<div style="font-size:12px;color:var(--mu2);margin-top:4px">average of '+m.count+' fill-up'+(m.count>1?'s':'')+' this '+m.bucket+'</div>';
+  }else{ // single fill
+    html='<div style="font-size:12px;color:var(--mu);font-family:monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">'+fd(m.date)+'</div>';
+    html+='<div style="font-size:28px;font-weight:800;font-family:monospace;color:'+color+'">'+v.toFixed(1)+(kind==='km/L'?' <span style="font-size:14px">km/L</span>':' <span style="font-size:14px">¥/L</span>')+'</div>';
+    if(kind==='km/L'&&m.dist){html+='<div style="font-size:13px;color:var(--mu2);margin-top:8px;line-height:1.7">Distance: <b style="color:var(--tx)">'+fn(m.dist)+' km</b><br>Fuel used: <b style="color:var(--tx)">'+m.liters.toFixed(1)+' L</b>'+(m.total?'<br>Cost: <b style="color:var(--tx)">¥'+fn(m.total)+'</b>':'')+(m.odo?'<br>Odometer: <b style="color:var(--tx)">'+fn(m.odo)+' km</b>':'')+'</div>';}
+  }
+  document.getElementById('ptBody').innerHTML=html;
+  document.getElementById('ptDlg').classList.add('on');
+}
+function closePt(){document.getElementById('ptDlg').classList.remove('on');}
+
+// ════════ INSIGHTS ════════
+function renderInsights(){
+  buildRangeRow('insRange',insRangeSel,function(v){insRangeSel=v;renderInsights();});
+  var cutoff=null;if(insRangeSel!=='all'){cutoff=new Date();cutoff.setDate(cutoff.getDate()-parseInt(insRangeSel));}
+  function inR(d){return !cutoff||new Date(d)>=cutoff;}
+  var fuelTotal=0,fuelLiters=0,fillN=0;S.fills.forEach(function(f){if(inR(f.date)){fuelTotal+=(f.total||0);fuelLiters+=(f.qty||0);fillN++;}});
+  var svcTotal=0,svcN=0;S.logs.forEach(function(l){if(inR(l.date)){svcTotal+=(l.cost||0);svcN++;}});
+  var eff=computeEff().filter(function(e){return inR(e.date);});
+  var avgEff=eff.length?eff.reduce(function(s,e){return s+e.eff;},0)/eff.length:0;
+  var bestEff=eff.length?Math.max.apply(null,eff.map(function(e){return e.eff;})):0;
+  var avgPrice=fuelLiters?fuelTotal/fuelLiters:0;
+  var odos=S.fills.filter(function(f){return inR(f.date);}).map(function(f){return f.odo;});
+  var dist=odos.length>1?Math.max.apply(null,odos)-Math.min.apply(null,odos):0;
+  var costPerKm=dist>0?(fuelTotal+svcTotal)/dist:0,total=fuelTotal+svcTotal;
+  document.getElementById('insStats').innerHTML=sc('Total Spent','¥'+fn(total),fillN+' fuel · '+svcN+' svc','#22d3ee')+sc('Fuel Cost','¥'+fn(fuelTotal),fn(fuelLiters)+' L','#f43f5e')+sc('Service Cost','¥'+fn(svcTotal),svcN+' logged','#a855f7')+sc('Avg km/L',avgEff?avgEff.toFixed(1):'—',bestEff?'best '+bestEff.toFixed(1):'—','#34d399')+sc('Avg ¥/L',avgPrice?'¥'+avgPrice.toFixed(0):'—','fuel price','#60a5fa')+sc('Cost / km',costPerKm?'¥'+costPerKm.toFixed(1):'—',dist?fn(dist)+' km':'—','#fbbf24');
+  drawInsBar(inR);drawInsPie(inR,fuelTotal);drawInsPrice(inR);
+}
+function sc(l,v,s,c){return'<div class="sc"><div class="scl">'+l+'</div><div class="scv" style="color:'+c+'">'+v+'</div><div class="scs">'+s+'</div></div>';}
+function drawInsBar(inR){var mm={};S.fills.forEach(function(f){if(inR(f.date)&&f.date){var k=f.date.slice(0,7);mm[k]=(mm[k]||0)+(f.total||0);}});S.logs.forEach(function(l){if(inR(l.date)&&l.date){var k=l.date.slice(0,7);mm[k]=(mm[k]||0)+(l.cost||0);}});var keys=Object.keys(mm).sort();var canvas=document.getElementById('insBar'),empty=document.getElementById('insBarE');if(!keys.length){canvas.style.display='none';empty.style.display='block';return;}canvas.style.display='block';empty.style.display='none';var s=setupCanvas(canvas,190),ctx=s.ctx,W=s.W,H=s.H;var vals=keys.map(function(k){return mm[k];}),maxV=Math.max.apply(null,vals)||1;var pad={t:10,b:38,l:52,r:10},bw=(W-pad.l-pad.r)/keys.length,bp=bw*0.2;ctx.strokeStyle='#1e2738';ctx.lineWidth=1;for(var g=0;g<=4;g++){var gy=pad.t+(H-pad.t-pad.b)*g/4;ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(W-pad.r,gy);ctx.stroke();ctx.fillStyle='#5f6e88';ctx.font='9px monospace';ctx.textAlign='right';ctx.fillText('¥'+fn(maxV*(1-g/4)),pad.l-4,gy+3);}vals.forEach(function(v,i){var x=pad.l+i*bw+bp,bH=(v/maxV)*(H-pad.t-pad.b),y=H-pad.b-bH;var grad=ctx.createLinearGradient(0,y,0,H-pad.b);grad.addColorStop(0,'#22d3ee');grad.addColorStop(1,'#22d3ee33');ctx.fillStyle=grad;ctx.fillRect(x,y,bw-bp*2,bH);var d=new Date(keys[i]+'-01');ctx.fillStyle='#5f6e88';ctx.font='9px monospace';ctx.textAlign='center';ctx.fillText(d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}),pad.l+i*bw+bw/2,H-pad.b+14);});}
+function drawInsPie(inR,fuelTotal){var cats={};if(fuelTotal>0)cats['Fuel']=fuelTotal;S.logs.forEach(function(l){if(inR(l.date)&&l.cost>0){var it=S.items.find(function(i){return i.id===l.itemId;});var nm=it?it.name:l.itemId;cats[nm]=(cats[nm]||0)+l.cost;}});var keys=Object.keys(cats);var canvas=document.getElementById('insPie'),empty=document.getElementById('insPieE');if(!keys.length){canvas.style.display='none';empty.style.display='block';return;}canvas.style.display='block';empty.style.display='none';var s=setupCanvas(canvas,210),ctx=s.ctx,W=s.W;var vals=keys.map(function(k){return cats[k];}),total=vals.reduce(function(a,b){return a+b;},0);var colors=['#f43f5e','#22d3ee','#34d399','#60a5fa','#fb923c','#a855f7','#fbbf24','#0891b2','#ec4899','#14b8a6'];var cx=W/2,cy=80,r=62,ang=-Math.PI/2;vals.forEach(function(v,i){var sl=2*Math.PI*(v/total);ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,ang,ang+sl);ctx.closePath();ctx.fillStyle=colors[i%colors.length];ctx.fill();var mid=ang+sl/2,p=Math.round(v/total*100);if(p>=6){ctx.fillStyle='#05070d';ctx.font='bold 10px monospace';ctx.textAlign='center';ctx.fillText(p+'%',cx+Math.cos(mid)*r*0.6,cy+Math.sin(mid)*r*0.6+3);}ang+=sl;});ctx.beginPath();ctx.arc(cx,cy,r*0.5,0,7);ctx.fillStyle='#0c1018';ctx.fill();var ly=160;keys.forEach(function(k,i){var col=i%2,row=Math.floor(i/2);var x=10+col*(W/2),y=ly+row*18;ctx.fillStyle=colors[i%colors.length];ctx.fillRect(x,y,10,10);ctx.fillStyle='#8b9bb8';ctx.font='10px sans-serif';ctx.textAlign='left';var nm=k.length>13?k.slice(0,12)+'…':k;ctx.fillText(nm+' ¥'+fn(cats[k]),x+14,y+9);});}
+function drawInsPrice(inR){var pts=S.fills.filter(function(f){return inR(f.date)&&f.price>0;}).sort(function(a,b){return new Date(a.date)-new Date(b.date);}).map(function(f){return{date:f.date,val:f.price,total:f.total,liters:f.qty,odo:f.odo};});var b=bucketByRange(pts,insRangeSel);lineChart(document.getElementById('insPrice'),document.getElementById('insPriceE'),b.labels,b.values,'#60a5fa',b.meta,function(m,v){showPointDetail('¥/L',m,v,'#60a5fa');});}
+
+// ════════ TASKS LIST ════════
+function renderAllTasks(){
+  var el=document.getElementById('allTasks');
+  el.innerHTML=sortedItems().map(function(it){var p=pct(it),st=status(it),col=barColor(p);var tc=st==='ok'?'tok':st==='warn'?'twn':st==='due'?'tdu':'tnv';var tl=st==='ok'?'OK':st==='warn'?'Soon':st==='due'?'Due!':'Never';return '<div class="flist-card" data-id="'+it.id+'"><div class="fc-top"><div class="fc-ico" style="background:'+it.col+'22">'+it.ico+'</div><div class="fc-info"><div class="fc-name">'+escHtml(it.name)+'</div><div class="fc-prod">'+escHtml((it.prod||'').split(' or ')[0])+'</div><div class="fc-due" style="color:'+col+'">'+dueText(it)+'</div></div><span class="stag '+tc+'">'+tl+'</span></div><div class="fc-bar"><div style="height:100%;border-radius:2px;width:'+p+'%;background:'+col+'"></div></div></div>';}).join('');
+  el.querySelectorAll('.flist-card').forEach(function(c){c.onclick=function(){openDetail(c.getAttribute('data-id'));};});
+}
+
+// ════════ HISTORY ════════
+function renderFullHistory(){
+  var entries=[];
+  S.fills.forEach(function(f){entries.push({type:'fill',date:f.date,odo:f.odo,name:'Fuel',sub:(f.qty||0)+' L'+(f.price?' @ ¥'+f.price.toFixed(0)+'/L':'')+(f.notes?' · '+f.notes:''),cost:f.total,ico:'⛽',bg:'rgba(244,63,94,.15)'});});
+  S.logs.forEach(function(l){var it=S.items.find(function(i){return i.id===l.itemId;});entries.push({type:'svc',date:l.date,odo:l.odometer,name:it?it.name:l.itemId,sub:l.notes||'',cost:l.cost,ico:it?it.ico:'🔧',bg:'rgba(168,85,247,.15)'});});
+  entries.sort(function(a,b){return new Date(b.date)-new Date(a.date)||b.odo-a.odo;});
+  var el=document.getElementById('fullHistory');
+  if(!entries.length){el.innerHTML='<div class="empty"><div class="ei">🗂️</div>No history yet.</div>';return;}
+  el.innerHTML=entries.map(function(e){return '<div class="le"><div class="letop"><div style="display:flex;gap:10px;align-items:flex-start"><div class="rlog-ico" style="width:36px;height:36px;font-size:16px;background:'+e.bg+'">'+e.ico+'</div><div><div style="font-size:14px;font-weight:700">'+escHtml(e.name)+'</div><div class="ledate">'+fd(e.date)+' · Odo '+fn(e.odo)+'</div></div></div>'+(e.cost?'<div class="lecost">¥'+fn(e.cost)+'</div>':'')+'</div>'+(e.sub?'<div class="lenotes">'+escHtml(e.sub)+'</div>':'')+'</div>';}).join('');
+}
+
+// ════════ DETAIL SHEET ════════
+function openDetail(id){
+  activeId=id;var it=S.items.find(function(i){return i.id===id;});if(!it)return;
+  var logs=S.logs.filter(function(l){return l.itemId===id;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var today=new Date().toISOString().split('T')[0];
+  var h='<h2>'+it.ico+' '+escHtml(it.name)+'</h2><div class="mprod">'+escHtml(it.prod||'')+'</div>'+
+    '<div class="chips"><div class="chip"><div class="cl">Interval</div><div class="cv">'+(it.iKm?fn(it.iKm)+' km':'—')+'</div></div><div class="chip"><div class="cl">Or every</div><div class="cv">'+(it.iMo?it.iMo+' mo':'—')+'</div></div></div>'+
+    '<div class="chips"><div class="chip"><div class="cl">Last at km</div><div class="cv">'+(it.lKm?fn(it.lKm):'—')+'</div></div><div class="chip"><div class="cl">Last date</div><div class="cv" style="font-size:12px">'+fd(it.lDate)+'</div></div></div>'+
+    (it.desc?'<div class="stitle">How-To & Info</div><div class="desc">'+escHtml(it.desc)+'</div>':'')+
+    '<div class="stitle">Log This Service</div>'+
+    '<div class="fg"><label>Date</label><input type="date" id="lDate" value="'+today+'"></div>'+
+    '<div class="fg"><label>Odometer (km)</label><input type="number" id="lOdo" inputmode="numeric" value="'+S.odo+'"></div>'+
+    '<div class="fg"><label>Price / Cost (¥)</label><input type="number" id="lCost" inputmode="numeric" placeholder="e.g. 3500"></div>'+
+    '<div class="fg"><label>Notes</label><textarea id="lNotes" placeholder="Brand used, shop, anything unusual..."></textarea></div>'+
+    '<button class="btn bp" onclick="logSvc()">✓ Mark as Done</button>'+
+    '<button class="btn bs" onclick="closeSheet();openTaskEditor(\''+it.id+'\')">✎ Edit Task</button>'+
+    '<button class="btn bs" onclick="closeSheet()">Close</button>';
+  if(logs.length){h+='<div class="stitle">Past Logs ('+logs.length+')</div>';logs.forEach(function(l){h+='<div class="le"><div class="letop"><div><div class="ledate">'+fd(l.date)+'</div><div class="leodo">@ '+fn(l.odometer)+' km</div></div>'+(l.cost?'<div style="display:flex;align-items:center"><div class="lecost">¥'+fn(l.cost)+'</div><button class="ledel" onclick="delLog(\''+l.id+'\')">✕</button></div>':'<button class="ledel" onclick="delLog(\''+l.id+'\')">✕</button>')+'</div>'+(l.notes?'<div class="lenotes">'+escHtml(l.notes)+'</div>':'')+'</div>';});}
+  document.getElementById('sheetBody').innerHTML=h;
+  document.getElementById('scrim2').classList.add('on');document.getElementById('sheet').classList.add('on');
+}
+function closeSheet(){document.getElementById('scrim2').classList.remove('on');document.getElementById('sheet').classList.remove('on');activeId=null;}
+function logSvc(){var d=document.getElementById('lDate').value,o=parseInt(document.getElementById('lOdo').value)||0,c=parseFloat(document.getElementById('lCost').value)||0,n=document.getElementById('lNotes').value.trim();if(!d||!o){alert('Enter date and odometer.');return;}S.logs.push({id:Date.now().toString(),itemId:activeId,date:d,odometer:o,cost:c,notes:n});var it=S.items.find(function(i){return i.id===activeId;});if(it){it.lKm=o;it.lDate=d;if(o>S.odo)S.odo=o;}save();closeSheet();refreshAll();}
+function delLog(lid){if(!confirm('Delete this log entry?'))return;S.logs=S.logs.filter(function(l){return l.id!==lid;});var it=S.items.find(function(i){return i.id===activeId;});if(it){var rem=S.logs.filter(function(l){return l.itemId===activeId;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});if(rem.length){it.lKm=rem[0].odometer;it.lDate=rem[0].date;}else{it.lKm=null;it.lDate=null;}}save();openDetail(activeId);refreshAll();}
+
+// ════════ CAR EDITOR ════════
+function renderCar(){
+  document.getElementById('carName').textContent=S.car.name||'My Car';
+  document.getElementById('carSub').textContent=S.car.sub||'';
+  document.getElementById('carIco').textContent=S.car.ico||'🚗';
+}
+function openCarEditor(){
+  closeDrawer();
+  document.getElementById('cName').value=S.car.name||'';
+  document.getElementById('cSub').value=S.car.sub||'';
+  document.getElementById('cIco').value=S.car.ico||'🚗';
+  document.getElementById('cOdo').value=S.odo;
+  document.getElementById('carDlg').classList.add('on');
+}
+function closeCarEditor(){document.getElementById('carDlg').classList.remove('on');}
+function saveCar(){
+  var nm=document.getElementById('cName').value.trim();
+  if(!nm){alert('Enter a name.');return;}
+  S.car.name=nm;
+  S.car.sub=document.getElementById('cSub').value.trim();
+  S.car.ico=document.getElementById('cIco').value.trim()||'🚗';
+  var o=parseInt(document.getElementById('cOdo').value)||0;
+  if(o>0)S.odo=o;
+  save();renderCar();closeCarEditor();refreshAll();
+}
+
+// ════════ TASK EDITOR (CRUD) ════════
+function openTaskEditor(id){
+  editingTaskId=id;
+  var t=id?S.items.find(function(i){return i.id===id;}):null;
+  document.getElementById('taskDlgTitle').textContent=t?'Edit Task':'Add Task';
+  document.getElementById('tName').value=t?t.name:'';
+  document.getElementById('tProd').value=t?(t.prod||''):'';
+  document.getElementById('tKm').value=t&&t.iKm?t.iKm:'';
+  document.getElementById('tMo').value=t&&t.iMo?t.iMo:'';
+  document.getElementById('tIco').value=t?t.ico:'🔧';
+  document.getElementById('tDesc').value=t?(t.desc||''):'';
+  document.getElementById('tDelBtn').style.display=id?'block':'none';
+  document.getElementById('taskDlg').classList.add('on');
+}
+function closeTaskEditor(){document.getElementById('taskDlg').classList.remove('on');editingTaskId=null;}
+function saveTask(){
+  var name=document.getElementById('tName').value.trim();
+  if(!name){alert('Enter a task name.');return;}
+  var km=parseInt(document.getElementById('tKm').value)||null;
+  var mo=parseInt(document.getElementById('tMo').value)||null;
+  if(!km&&!mo){alert('Set at least a km or month interval.');return;}
+  var prod=document.getElementById('tProd').value.trim();
+  var ico=document.getElementById('tIco').value.trim()||'🔧';
+  var desc=document.getElementById('tDesc').value.trim();
+  if(editingTaskId){
+    var it=S.items.find(function(i){return i.id===editingTaskId;});
+    if(it){it.name=name;it.prod=prod;it.iKm=km;it.iMo=mo;it.ico=ico;it.desc=desc;}
+  }else{
+    S.items.push({id:'custom_'+Date.now(),name:name,ico:ico,col:'#22d3ee',prod:prod,iKm:km,iMo:mo,desc:desc,lKm:null,lDate:null,custom:true});
+  }
+  save();closeTaskEditor();refreshAll();
+}
+function deleteTask(){
+  if(!confirm('Delete this task and all its service logs?'))return;
+  S.items=S.items.filter(function(i){return i.id!==editingTaskId;});
+  S.logs=S.logs.filter(function(l){return l.itemId!==editingTaskId;});
+  save();closeTaskEditor();refreshAll();
+}
+
+// ════════ DIALOGS: FUEL / SERVICE ════════
+function toggleFab(){fabOpen=!fabOpen;document.getElementById('fab').classList.toggle('open',fabOpen);document.getElementById('fabMenu').classList.toggle('on',fabOpen);}
+function closeFab(){fabOpen=false;document.getElementById('fab').classList.remove('open');document.getElementById('fabMenu').classList.remove('on');}
+function openFillup(){closeFab();document.getElementById('fDate').value=new Date().toISOString().split('T')[0];['fOdo','fQty','fPrice','fTotal','fNotes'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fPartial').checked=false;document.getElementById('fillDlg').classList.add('on');}
+function closeFill(){document.getElementById('fillDlg').classList.remove('on');}
+document.getElementById('fillDlg').addEventListener('input',function(e){var q=parseFloat(document.getElementById('fQty').value)||0;var p=parseFloat(document.getElementById('fPrice').value)||0;var t=parseFloat(document.getElementById('fTotal').value)||0;if(e.target.id==='fQty'||e.target.id==='fPrice'){if(q&&p)document.getElementById('fTotal').value=Math.round(q*p);}if(e.target.id==='fTotal'){if(q&&t)document.getElementById('fPrice').value=(t/q).toFixed(1);}});
+function saveFillup(){var d=document.getElementById('fDate').value,o=parseInt(document.getElementById('fOdo').value)||0,q=parseFloat(document.getElementById('fQty').value)||0,p=parseFloat(document.getElementById('fPrice').value)||0,t=parseFloat(document.getElementById('fTotal').value)||0,partial=document.getElementById('fPartial').checked,notes=document.getElementById('fNotes').value.trim();if(!d||!o||!q){alert('Enter date, odometer and quantity.');return;}if(!t&&p)t=Math.round(q*p);if(!p&&t)p=t/q;S.fills.push({id:Date.now().toString(),date:d,odo:o,qty:q,price:p,total:t,partial:partial,notes:notes});if(o>S.odo)S.odo=o;save();closeFill();refreshAll();}
+function openServicePicker(){closeFab();var sel=document.getElementById('svcPick');sel.innerHTML=sortedItems().map(function(it){return '<option value="'+it.id+'">'+it.ico+' '+escHtml(it.name)+'</option>';}).join('');document.getElementById('svcDlg').classList.add('on');}
+function closeSvcPick(){document.getElementById('svcDlg').classList.remove('on');}
+function openServiceFromPicker(){var id=document.getElementById('svcPick').value;closeSvcPick();openDetail(id);}
+
+// ════════ REFRESH ════════
+function refreshAll(){renderDash();if(document.getElementById('pg-insights').classList.contains('on'))renderInsights();if(document.getElementById('view-tasks').classList.contains('on'))renderAllTasks();if(document.getElementById('view-history').classList.contains('on'))renderFullHistory();}
+
+// ════════ SWIPE between Dashboard / Insights ════════
+(function(){
+  var x0=null,y0=null,t0=0;
+  var home=document.getElementById('view-home');
+  home.addEventListener('touchstart',function(e){if(e.touches.length!==1)return;x0=e.touches[0].clientX;y0=e.touches[0].clientY;t0=Date.now();},{passive:true});
+  home.addEventListener('touchend',function(e){
+    if(x0===null)return;
+    var dx=e.changedTouches[0].clientX-x0;
+    var dy=e.changedTouches[0].clientY-y0;
+    var dt=Date.now()-t0;
+    x0=null;
+    // horizontal, fast enough, not a vertical scroll
+    if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.8&&dt<600){
+      var onDash=document.getElementById('pg-dash').classList.contains('on');
+      if(dx<0&&onDash)showTab('insights');      // swipe left -> insights
+      else if(dx>0&&!onDash)showTab('dash');    // swipe right -> dashboard
+    }
+  },{passive:true});
+})();
+
+// ════════ DATA EXPORT / IMPORT ════════
+function exportData(){
+  try{
+    var blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    var d=new Date().toISOString().slice(0,10);
+    a.href=url;a.download='doctorcar-backup-'+d+'.json';
+    document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);a.remove();},100);
+  }catch(e){alert('Export failed: '+e.message);}
+}
+function importData(ev){
+  var file=ev.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      if(!data.items||!Array.isArray(data.items))throw new Error('Not a valid DoctorCar backup');
+      if(!confirm('This will replace all current data with the backup. Continue?')){ev.target.value='';return;}
+      S=data;
+      if(!S.fills)S.fills=[];if(!S.logs)S.logs=[];
+      if(!S.car)S.car={name:'My Car',sub:'',ico:'🚗'};
+      save();renderCar();buildDrawer();showView('home');refreshAll();
+      alert('Backup imported successfully.');
+    }catch(err){alert('Import failed: '+err.message);}
+    ev.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ════════ INIT ════════
+load();buildDrawer();renderCar();renderDash();
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+window.addEventListener('resize',function(){if(document.getElementById('view-home').classList.contains('on'))refreshAll();});
+</script>
+</body>
+</html>
+#bnav button.on{color:var(--cy)}
+#bnav button.on svg{filter:drop-shadow(0 0 5px var(--cy))}
+#bnav button svg{width:21px;height:21px}
+/* SHEET */
+#scrim2{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(2px);z-index:100;display:none}
+#scrim2.on{display:block}
+#sheet{position:fixed;bottom:0;left:0;right:0;background:var(--s);border-radius:22px 22px 0 0;border-top:1px solid var(--bd2);z-index:101;max-height:93dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);padding:0 18px calc(18px + env(safe-area-inset-bottom,0px))}
+#sheet.on{transform:translateY(0)}
+.handle{width:38px;height:4px;background:var(--bd2);border-radius:2px;margin:14px auto 16px}
+#sheet h2{font-size:18px;font-weight:800;margin-bottom:3px}
+.mprod{font-family:monospace;font-size:12px;color:var(--cy);margin-bottom:12px}
+.chips{display:flex;gap:8px;margin-bottom:10px}
+.chip{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:8px 10px;flex:1}
+.chip .cl{font-size:10px;font-family:monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}
+.chip .cv{font-size:13px;font-weight:600;margin-top:2px}
+.desc{background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:12px;font-size:12px;line-height:1.65;color:var(--mu2);margin:10px 0;white-space:pre-wrap;word-break:break-word}
+.stitle{font-size:10px;font-family:monospace;color:var(--mu);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;display:flex;align-items:center;gap:8px}
+.stitle::after{content:'';flex:1;height:1px;background:var(--bd)}
+.fg{margin-bottom:12px}
+label{display:block;font-size:11px;font-family:monospace;color:var(--mu2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-family:inherit;font-size:14px;padding:11px 12px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--cy);box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+textarea{resize:vertical;min-height:70px}
+.frow{display:flex;gap:10px}.frow .fg{flex:1}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;letter-spacing:.3px}
+.btn:active{opacity:.85}
+.bp{background:linear-gradient(135deg,var(--cy),var(--cy2));color:#05070d;box-shadow:0 4px 16px rgba(34,211,238,.3)}
+.bs{background:var(--s2);color:var(--tx);border:1px solid var(--bd2)}
+.bd{background:rgba(244,63,94,.12);color:var(--r);border:1px solid rgba(244,63,94,.3)}
+.le{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.letop{display:flex;justify-content:space-between;align-items:flex-start}
+.ledate{font-size:11px;font-family:monospace;color:var(--mu2)}
+.leodo{font-size:11px;color:var(--mu);font-family:monospace;margin-top:2px}
+.lecost{font-size:13px;font-weight:700;color:var(--cy);font-family:monospace}
+.lenotes{font-size:12px;color:var(--mu2);margin-top:6px;line-height:1.5}
+.ledel{background:none;border:none;color:var(--r);cursor:pointer;font-size:13px;padding:2px 6px;margin-left:8px}
+/* TASK LIST */
+.flist-card{background:linear-gradient(180deg,var(--s),rgba(12,16,24,.5));border:1px solid var(--bd);border-radius:14px;padding:13px 14px;margin-bottom:10px;cursor:pointer;position:relative;overflow:hidden}
+.flist-card:active{opacity:.85}
+.curl{position:absolute;left:0;top:0;bottom:0;width:3px}
+.fc-top{display:flex;align-items:flex-start;gap:10px}
+.fc-ico{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;border:1px solid var(--bd2)}
+.fc-info{flex:1;min-width:0}
+.fc-name{font-size:14px;font-weight:700}
+.fc-prod{font-size:11px;color:var(--mu2);font-family:monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc-due{font-size:10px;font-family:monospace;margin-top:3px;white-space:nowrap}
+.stag{font-size:9px;font-family:monospace;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:20px;font-weight:700;display:inline-block;flex-shrink:0}
+.tok{background:rgba(52,211,153,.13);color:var(--g)}
+.twn{background:rgba(251,191,36,.13);color:var(--y)}
+.tdu{background:rgba(244,63,94,.16);color:var(--r)}
+.tnv{background:rgba(95,110,136,.15);color:var(--mu2)}
+.fc-bar{height:4px;background:var(--s2);border-radius:2px;overflow:hidden;margin-top:10px;border:1px solid var(--bd)}
+.add-task-btn{width:100%;background:linear-gradient(135deg,rgba(34,211,238,.1),rgba(168,85,247,.1));border:1px dashed var(--bd2);color:var(--cy);padding:14px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:14px;letter-spacing:.3px}
+/* INSIGHTS */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.sc{background:linear-gradient(180deg,var(--s),rgba(12,16,24,.5));border:1px solid var(--bd);border-radius:14px;padding:14px;position:relative;overflow:hidden}
+.sc::before{content:'';position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,.3),transparent)}
+.scl{font-size:10px;font-family:monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px}
+.scv{font-size:20px;font-weight:800;font-family:monospace;margin-top:4px}
+.scs{font-size:11px;color:var(--mu2);margin-top:2px}
+.empty{text-align:center;padding:30px 0;color:var(--mu);font-size:13px}
+.empty .ei{font-size:30px;margin-bottom:8px;opacity:.6}
+/* DIALOG */
+.dlg{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(3px);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.dlg.on{display:flex}
+.dlg .box{background:var(--s);border:1px solid var(--bd2);border-radius:20px 20px 0 0;border-bottom:none;padding:22px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+.dlg h3{margin-bottom:16px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px}
+.ph{padding:18px 0 14px;border-bottom:1px solid var(--bd);margin-bottom:6px;display:flex;justify-content:space-between;align-items:flex-end}
+.ph h2{font-size:21px;font-weight:800}
+.ph p{color:var(--mu2);font-size:12px;margin-top:3px;font-family:monospace}
+.toggle-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;margin-bottom:12px}
+.toggle-row input{width:auto;margin:0}
+.toggle-row label{margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--tx);font-family:inherit}
+</style>
+</head>
+<body>
+
+<!-- DRAWER -->
+<div id="scrim" onclick="closeDrawer()"></div>
+<div id="drawer">
+  <div class="dhead" onclick="openCarEditor()" style="cursor:pointer">
+    <div class="car-ico" id="carIco">🚐</div>
+    <div class="cname" id="carName">Nissan Serena</div>
+    <div class="csub" id="carSub">C26 · 2011 · MR20DD</div>
+    <div style="font-size:10px;color:var(--cy);font-family:monospace;margin-top:6px;letter-spacing:.5px">✎ TAP TO EDIT</div>
+  </div>
+  <div class="dnav" id="drawerNav"></div>
+</div>
+
+<!-- TOPBAR -->
+<input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(event)">
+<div id="top">
+  <button class="burger" onclick="openDrawer()"><span></span><span></span><span></span></button>
+  <div style="display:flex;align-items:center;gap:10px">
+    <svg width="30" height="30" viewBox="0 0 512 512" style="flex-shrink:0"><defs><linearGradient id="dcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4FE9F7"/><stop offset="1" stop-color="#17A6C2"/></linearGradient></defs><rect width="512" height="512" rx="116" fill="#0B0F1A"/><path d="M70,262C70,252 78,246 90,246L120,246C128,214 152,190 198,190L298,190C346,190 374,216 394,248L424,252C438,254 444,262 444,272C444,281 437,286 428,286L398,286A36,36 0 0 0 326,286L196,286A36,36 0 0 0 124,286L82,286C73,286 70,279 70,270Z" fill="url(#dcg)"/><path d="M306,300C306,348 286,378 248,378C210,378 190,352 188,322" fill="none" stroke="#EAF7FA" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/><circle cx="306" cy="300" r="11" fill="#EAF7FA"/><circle cx="188" cy="338" r="24" fill="#0B0F1A" stroke="#EAF7FA" stroke-width="15"/><circle cx="188" cy="338" r="6" fill="#EAF7FA"/></svg>
+    <div class="logo">Doctor<span class="dot">Car</span></div>
+  </div>
+</div>
+
+<!-- HOME VIEW -->
+<div class="view on" id="view-home">
+  <div id="tabs">
+    <button class="on" id="tab-dash" onclick="showTab('dash')">Dashboard</button>
+    <button id="tab-insights" onclick="showTab('insights')">Insights</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="pg on" id="pg-dash">
+    <div class="panel">
+      <div class="rings" id="statRings"></div>
+      <div class="range-row" id="effRange"></div>
+      <canvas id="effChart" height="200"></canvas>
       <div id="effEmpty" class="chart-empty" style="display:none"><div class="ei">⛽</div>Add at least 2 full-tank fill-ups to see km/L over time</div>
     </div>
     <div class="panel">
