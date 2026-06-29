@@ -294,6 +294,28 @@ textarea{resize:vertical;min-height:70px}
   <button class="btn bs" onclick="closeSvcPick()">Cancel</button>
 </div></div>
 
+<!-- HISTORY ENTRY EDITOR -->
+<div class="dlg" id="histDlg"><div class="box">
+  <h3 id="histDlgTitle">Edit Entry</h3>
+  <div id="histFuelFields">
+    <div class="fg"><label>Date</label><input type="date" id="hDate"></div>
+    <div class="frow"><div class="fg"><label>Odometer km</label><input type="number" id="hOdo" inputmode="numeric"></div><div class="fg"><label>Quantity (L)</label><input type="number" id="hQty" inputmode="decimal" step="0.01"></div></div>
+    <div class="frow"><div class="fg"><label>Price/L (¥)</label><input type="number" id="hPrice" inputmode="decimal" step="0.01"></div><div class="fg"><label>Total (¥)</label><input type="number" id="hTotal" inputmode="numeric"></div></div>
+    <div class="toggle-row"><input type="checkbox" id="hPartial"><label for="hPartial">Partial tank</label></div>
+    <div class="fg"><label>Station / Notes</label><input type="text" id="hNotes"></div>
+  </div>
+  <div id="histSvcFields" style="display:none">
+    <div class="fg"><label>Task</label><select id="hSvcTask"></select></div>
+    <div class="fg"><label>Date</label><input type="date" id="hSvcDate"></div>
+    <div class="fg"><label>Odometer km</label><input type="number" id="hSvcOdo" inputmode="numeric"></div>
+    <div class="fg"><label>Price / Cost (¥)</label><input type="number" id="hSvcCost" inputmode="numeric"></div>
+    <div class="fg"><label>Notes</label><textarea id="hSvcNotes"></textarea></div>
+  </div>
+  <button class="btn bp" onclick="saveHistoryEdit()">Save Changes</button>
+  <button class="btn bd" onclick="deleteHistoryEntry()">Delete Entry</button>
+  <button class="btn bs" onclick="closeHistoryEditor()">Cancel</button>
+</div></div>
+
 <!-- POINT DETAIL POPUP -->
 <div class="dlg" id="ptDlg" style="align-items:center" onclick="if(event.target===this)closePt()"><div class="box" style="max-width:330px;border-radius:18px;border-bottom:1px solid var(--bd2)">
   <div id="ptBody"></div>
@@ -545,12 +567,78 @@ function renderAllTasks(){
 // ════════ HISTORY ════════
 function renderFullHistory(){
   var entries=[];
-  S.fills.forEach(function(f){entries.push({type:'fill',date:f.date,odo:f.odo,name:'Fuel',sub:(f.qty||0)+' L'+(f.price?' @ ¥'+f.price.toFixed(0)+'/L':'')+(f.notes?' · '+f.notes:''),cost:f.total,ico:'⛽',bg:'rgba(244,63,94,.15)'});});
-  S.logs.forEach(function(l){var it=S.items.find(function(i){return i.id===l.itemId;});entries.push({type:'svc',date:l.date,odo:l.odometer,name:it?it.name:l.itemId,sub:l.notes||'',cost:l.cost,ico:it?it.ico:'🔧',bg:'rgba(168,85,247,.15)'});});
+  S.fills.forEach(function(f){entries.push({type:'fill',id:f.id,date:f.date,odo:f.odo,name:'Fuel',sub:(f.qty||0)+' L'+(f.price?' @ ¥'+f.price.toFixed(0)+'/L':'')+(f.notes?' · '+f.notes:''),cost:f.total,ico:'⛽',bg:'rgba(244,63,94,.15)'});});
+  S.logs.forEach(function(l){var it=S.items.find(function(i){return i.id===l.itemId;});entries.push({type:'svc',id:l.id,date:l.date,odo:l.odometer,name:it?it.name:l.itemId,sub:l.notes||'',cost:l.cost,ico:it?it.ico:'🔧',bg:'rgba(168,85,247,.15)'});});
   entries.sort(function(a,b){return new Date(b.date)-new Date(a.date)||b.odo-a.odo;});
   var el=document.getElementById('fullHistory');
   if(!entries.length){el.innerHTML='<div class="empty"><div class="ei">🗂️</div>No history yet.</div>';return;}
-  el.innerHTML=entries.map(function(e){return '<div class="le"><div class="letop"><div style="display:flex;gap:10px;align-items:flex-start"><div class="rlog-ico" style="width:36px;height:36px;font-size:16px;background:'+e.bg+'">'+e.ico+'</div><div><div style="font-size:14px;font-weight:700">'+escHtml(e.name)+'</div><div class="ledate">'+fd(e.date)+' · Odo '+fn(e.odo)+'</div></div></div>'+(e.cost?'<div class="lecost">¥'+fn(e.cost)+'</div>':'')+'</div>'+(e.sub?'<div class="lenotes">'+escHtml(e.sub)+'</div>':'')+'</div>';}).join('');
+  el.innerHTML=entries.map(function(e){return '<div class="le" style="cursor:pointer" data-type="'+e.type+'" data-id="'+e.id+'"><div class="letop"><div style="display:flex;gap:10px;align-items:flex-start"><div class="rlog-ico" style="width:36px;height:36px;font-size:16px;background:'+e.bg+'">'+e.ico+'</div><div><div style="font-size:14px;font-weight:700">'+escHtml(e.name)+' <span style="font-size:11px;color:var(--mu);font-weight:400">✎</span></div><div class="ledate">'+fd(e.date)+' · Odo '+fn(e.odo)+'</div></div></div>'+(e.cost?'<div class="lecost">¥'+fn(e.cost)+'</div>':'')+'</div>'+(e.sub?'<div class="lenotes">'+escHtml(e.sub)+'</div>':'')+'</div>';}).join('');
+  el.querySelectorAll('.le').forEach(function(c){c.onclick=function(){openHistoryEditor(c.getAttribute('data-type'),c.getAttribute('data-id'));};});
+}
+
+// ════════ HISTORY ENTRY EDIT / DELETE ════════
+var histEditType=null,histEditId=null;
+function openHistoryEditor(type,id){
+  histEditType=type;histEditId=id;
+  document.getElementById('histFuelFields').style.display=type==='fill'?'block':'none';
+  document.getElementById('histSvcFields').style.display=type==='svc'?'block':'none';
+  if(type==='fill'){
+    var f=S.fills.find(function(x){return x.id===id;});if(!f){return;}
+    document.getElementById('histDlgTitle').textContent='⛽ Edit Fuel';
+    document.getElementById('hDate').value=f.date;
+    document.getElementById('hOdo').value=f.odo;
+    document.getElementById('hQty').value=f.qty;
+    document.getElementById('hPrice').value=f.price||'';
+    document.getElementById('hTotal').value=f.total||'';
+    document.getElementById('hPartial').checked=!!f.partial;
+    document.getElementById('hNotes').value=f.notes||'';
+  }else{
+    var l=S.logs.find(function(x){return x.id===id;});if(!l){return;}
+    document.getElementById('histDlgTitle').textContent='🔧 Edit Service';
+    var sel=document.getElementById('hSvcTask');
+    sel.innerHTML=S.items.map(function(it){return '<option value="'+it.id+'"'+(it.id===l.itemId?' selected':'')+'>'+it.ico+' '+escHtml(it.name)+'</option>';}).join('');
+    document.getElementById('hSvcDate').value=l.date;
+    document.getElementById('hSvcOdo').value=l.odometer;
+    document.getElementById('hSvcCost').value=l.cost||'';
+    document.getElementById('hSvcNotes').value=l.notes||'';
+  }
+  document.getElementById('histDlg').classList.add('on');
+}
+function closeHistoryEditor(){document.getElementById('histDlg').classList.remove('on');histEditType=null;histEditId=null;}
+function recalcTaskLast(tid){
+  var it=S.items.find(function(i){return i.id===tid;});if(!it)return;
+  var rem=S.logs.filter(function(l){return l.itemId===tid;}).sort(function(a,b){return new Date(b.date)-new Date(a.date)||b.odometer-a.odometer;});
+  if(rem.length){it.lKm=rem[0].odometer;it.lDate=rem[0].date;}else{it.lKm=null;it.lDate=null;}
+}
+function saveHistoryEdit(){
+  if(histEditType==='fill'){
+    var f=S.fills.find(function(x){return x.id===histEditId;});if(!f)return;
+    var d=document.getElementById('hDate').value,o=parseInt(document.getElementById('hOdo').value)||0,q=parseFloat(document.getElementById('hQty').value)||0;
+    var p=parseFloat(document.getElementById('hPrice').value)||0,t=parseFloat(document.getElementById('hTotal').value)||0;
+    if(!d||!o||!q){alert('Enter date, odometer and quantity.');return;}
+    if(!t&&p)t=Math.round(q*p);if(!p&&t)p=t/q;
+    f.date=d;f.odo=o;f.qty=q;f.price=p;f.total=Math.round(t);f.partial=document.getElementById('hPartial').checked;f.notes=document.getElementById('hNotes').value.trim();
+  }else{
+    var l=S.logs.find(function(x){return x.id===histEditId;});if(!l)return;
+    var oldTask=l.itemId;
+    var newTask=document.getElementById('hSvcTask').value;
+    var d2=document.getElementById('hSvcDate').value,o2=parseInt(document.getElementById('hSvcOdo').value)||0;
+    if(!d2||!o2){alert('Enter date and odometer.');return;}
+    l.itemId=newTask;l.date=d2;l.odometer=o2;l.cost=parseFloat(document.getElementById('hSvcCost').value)||0;l.notes=document.getElementById('hSvcNotes').value.trim();
+    recalcTaskLast(oldTask);if(newTask!==oldTask)recalcTaskLast(newTask);
+  }
+  save();closeHistoryEditor();refreshAll();
+}
+function deleteHistoryEntry(){
+  if(!confirm('Delete this entry permanently?'))return;
+  if(histEditType==='fill'){
+    S.fills=S.fills.filter(function(x){return x.id!==histEditId;});
+  }else{
+    var l=S.logs.find(function(x){return x.id===histEditId;});var tid=l?l.itemId:null;
+    S.logs=S.logs.filter(function(x){return x.id!==histEditId;});
+    if(tid)recalcTaskLast(tid);
+  }
+  save();closeHistoryEditor();refreshAll();
 }
 
 // ════════ DETAIL SHEET ════════
