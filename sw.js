@@ -1,5 +1,5 @@
 // Bump CACHE version whenever you update the app to force phones to refresh.
-const CACHE='doctorcar-v2';
+const CACHE='doctorcar-v3';
 const ASSETS=['./','./index.html','./manifest.json','./doctorcar-icon-192.png','./doctorcar-icon-512.png'];
 
 self.addEventListener('install',e=>{
