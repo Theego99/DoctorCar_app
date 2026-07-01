@@ -174,6 +174,27 @@ textarea{resize:vertical;min-height:70px}
 .toggle-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:1px solid var(--bd);border-radius:10px;margin-bottom:12px}
 .toggle-row input{width:auto;margin:0}
 .toggle-row label{margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--tx);font-family:inherit}
+/* FUEL MAP */
+.fm-wrap{position:relative}
+#fuelMap{width:100%;height:52dvh;min-height:280px;background:var(--s2);border-bottom:1px solid var(--bd);z-index:1}
+.fm-status{padding:10px 16px;font-size:12px;font-family:monospace;color:var(--mu2);background:var(--s);border-bottom:1px solid var(--bd);letter-spacing:.3px}
+.fm-filter-btn{position:fixed;bottom:calc(78px + env(safe-area-inset-bottom,0px));right:18px;z-index:46;background:linear-gradient(135deg,var(--cy),var(--vi));color:#05070d;border:none;border-radius:16px;padding:13px 17px;font-family:inherit;font-size:14px;font-weight:800;letter-spacing:.3px;cursor:pointer;box-shadow:0 6px 22px rgba(34,211,238,.45);display:flex;align-items:center;gap:8px}
+.fm-filter-btn:active{opacity:.88}
+.fm-filter-btn .bdg{background:#05070d;color:var(--cy);border-radius:20px;font-size:11px;font-family:monospace;padding:1px 7px;font-weight:700}
+.fm-list{padding:12px 14px 20px}
+.fm-card{background:linear-gradient(180deg,var(--s),rgba(12,16,24,.5));border:1px solid var(--bd);border-radius:14px;padding:12px 13px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px}
+.fm-card:active{opacity:.85}
+.fm-ico{width:40px;height:40px;border-radius:12px;background:rgba(244,63,94,.14);border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+.fm-mid{flex:1;min-width:0}
+.fm-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm-sub{font-size:11px;color:var(--mu2);font-family:monospace;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fm-right{text-align:right;flex-shrink:0}
+.fm-price{font-size:16px;font-weight:800;font-family:monospace;color:var(--cy)}
+.fm-price small{font-size:9px;color:var(--mu);font-weight:400}
+.fm-open{font-size:10px;font-family:monospace;margin-top:3px;text-transform:uppercase;letter-spacing:.5px}
+.fm-open.o{color:var(--g)}.fm-open.c{color:var(--r)}.fm-open.u{color:var(--mu)}
+.fm-note{font-size:10px;color:var(--mu);font-family:monospace;text-align:center;padding:4px 6px 10px;line-height:1.6}
+.leaflet-popup-content{margin:12px 14px;font-family:'Segoe UI',system-ui,sans-serif}
 </style>
 </head>
 <body>
@@ -256,6 +277,16 @@ textarea{resize:vertical;min-height:70px}
   </div>
 </div>
 
+<!-- FUEL MAP VIEW -->
+<div class="view" id="view-fuelmap">
+  <div class="fm-wrap">
+    <div id="fuelMap"></div>
+    <div id="fmStatus" class="fm-status">Tap to load nearby gas stations…</div>
+    <div id="fmList" class="fm-list"></div>
+    <button id="fmFilterBtn" class="fm-filter-btn" onclick="openFuelFilter()"><span>⚙ Filter</span></button>
+  </div>
+</div>
+
 <!-- FAB -->
 <div class="fab-menu" id="fabMenu">
   <div class="fab-item"><span class="fl">Add Fuel</span><button class="fb" style="background:linear-gradient(135deg,#f43f5e,#be123c);color:#fff" onclick="openFillup()">⛽</button></div>
@@ -268,6 +299,7 @@ textarea{resize:vertical;min-height:70px}
   <button class="on" id="bn-home" onclick="showView('home')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>Home</button>
   <button id="bn-tasks" onclick="showView('tasks')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Tasks</button>
   <button id="bn-history" onclick="showView('history')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>History</button>
+  <button id="bn-fuelmap" onclick="showView('fuelmap')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v18"/><path d="M4 12h8"/><path d="M12 7h3l3 3v7a2 2 0 0 0 4 0V9l-3-3"/></svg>Fuel Map</button>
 </div>
 
 <!-- SHEET -->
@@ -346,6 +378,22 @@ textarea{resize:vertical;min-height:70px}
   <button class="btn bs" onclick="closeTaskEditor()">Cancel</button>
 </div></div>
 
+<!-- FUEL MAP FILTER -->
+<div class="dlg" id="fmFilterDlg"><div class="box">
+  <h3>⚙ Filter Stations</h3>
+  <div class="toggle-row"><input type="checkbox" id="fltOpen"><label for="fltOpen">Open now only</label></div>
+  <div class="fg"><label>Fuel type</label><select id="fltFuel">
+    <option value="regular">Regular · レギュラー</option>
+    <option value="highoctane">High-octane · ハイオク</option>
+    <option value="diesel">Diesel · 軽油</option>
+  </select></div>
+  <div class="fg"><label>Price lower than (¥/L) — blank for any</label><input type="number" id="fltPrice" inputmode="numeric" placeholder="e.g. 170"></div>
+  <div class="fg"><label>Search radius (km)</label><input type="number" id="fltRadius" inputmode="numeric" placeholder="5"></div>
+  <button class="btn bp" onclick="applyFuelFilter()">Apply</button>
+  <button class="btn bs" onclick="clearFuelFilter()">Clear filters</button>
+  <button class="btn bs" onclick="closeFuelFilter()">Cancel</button>
+</div></div>
+
 <script>
 // ════════ DATA ════════
 var ITEMS = [
@@ -382,7 +430,25 @@ var ITEMS = [
 var S={odo:90000,car:{name:'Nissan Serena',sub:'C26 · 2011 · MR20DD',ico:'🚐'},items:[],logs:[],fills:[]};
 var activeId=null,fabOpen=false,effRangeSel='30',insRangeSel='all',editingTaskId=null;
 
-function save(){try{localStorage.setItem('doctorcar',JSON.stringify(S));}catch(e){}}
+// ════════ DURABLE STORAGE ════════
+// Primary store is localStorage (persistent per-origin, survives reloads & app
+// restarts). We ALSO mirror every write into IndexedDB and ask the browser for
+// persistent-storage permission, so data is never lost to cache/quota eviction.
+var IDB_DB='doctorcar_store',IDB_ST='kv',IDB_K='state';
+function idbOpen(){return new Promise(function(res,rej){if(!('indexedDB'in window)){rej();return;}var r;try{r=indexedDB.open(IDB_DB,1);}catch(e){rej();return;}r.onupgradeneeded=function(){try{r.result.createObjectStore(IDB_ST);}catch(e){}};r.onsuccess=function(){res(r.result);};r.onerror=function(){rej(r.error);};});}
+function idbSet(v){return idbOpen().then(function(db){return new Promise(function(res,rej){var tx=db.transaction(IDB_ST,'readwrite');tx.objectStore(IDB_ST).put(v,IDB_K);tx.oncomplete=function(){res();};tx.onerror=function(){rej(tx.error);};});});}
+function idbGet(){return idbOpen().then(function(db){return new Promise(function(res,rej){var tx=db.transaction(IDB_ST,'readonly');var q=tx.objectStore(IDB_ST).get(IDB_K);q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};});});}
+function requestPersistence(){try{if(navigator.storage&&navigator.storage.persist){navigator.storage.persisted().then(function(p){if(!p)navigator.storage.persist().catch(function(){});}).catch(function(){});}}catch(e){}}
+function hydrateFromIDB(){
+  idbGet().then(function(v){
+    if(!v)return;
+    var lsHas=false;try{lsHas=!!localStorage.getItem('doctorcar');}catch(e){}
+    if(lsHas)return; // localStorage is the live copy — nothing to restore
+    // localStorage was cleared/evicted but the IndexedDB mirror survived → restore it
+    try{var d=JSON.parse(v);if(d&&d.items&&d.items.length){S=d;if(!S.fills)S.fills=[];if(!S.logs)S.logs=[];if(!S.car)S.car={name:'My Car',sub:'',ico:'🚗'};save();renderCar();buildDrawer();refreshAll();}}catch(e){}
+  }).catch(function(){});
+}
+function save(){var str;try{str=JSON.stringify(S);}catch(e){return;}try{localStorage.setItem('doctorcar',str);}catch(e){}try{idbSet(str).catch(function(){});}catch(e){}}
 function load(){
   try{
     var r=localStorage.getItem('doctorcar')||localStorage.getItem('kurdkar')||localStorage.getItem('micoche');
@@ -436,11 +502,11 @@ function computeEff(){
 }
 
 // ════════ NAV ════════
-var drawerItems=[{v:'home',label:'Home',ico:'<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>'},{v:'tasks',label:'Tasks',ico:'<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>'},{v:'history',label:'History',ico:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/>'}];
+var drawerItems=[{v:'home',label:'Home',ico:'<path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/>'},{v:'tasks',label:'Tasks',ico:'<path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>'},{v:'history',label:'History',ico:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/>'},{v:'fuelmap',label:'Fuel Map',ico:'<path d="M4 22V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v18"/><path d="M4 12h8"/><path d="M12 7h3l3 3v7a2 2 0 0 0 4 0V9l-3-3"/>'}];
 function buildDrawer(){var h='<div class="lbl">Menu</div>';drawerItems.forEach(function(d){h+='<button data-v="'+d.v+'" onclick="showView(\''+d.v+'\');closeDrawer()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+d.ico+'</svg>'+d.label+'</button>';});h+='<div class="sep"></div><div class="lbl">Quick Add</div>';h+='<button onclick="closeDrawer();openFillup()"><svg viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2"><path d="M3 22h12V11l-3-3V3H6v5L3 11z"/></svg>Add Fuel</button>';h+='<button onclick="closeDrawer();openServicePicker()"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><path d="M14 7l3 3-7 7-3-3z"/></svg>Add Service</button>';h+='<div class="sep"></div><div class="lbl">Data</div>';h+='<button onclick="closeDrawer();exportData()"><svg viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Export backup</button>';h+='<button onclick="document.getElementById(\'importFile\').click()"><svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M4 19h16"/></svg>Import backup</button>';document.getElementById('drawerNav').innerHTML=h;}
 function openDrawer(){document.getElementById('scrim').classList.add('on');document.getElementById('drawer').classList.add('on');}
 function closeDrawer(){document.getElementById('scrim').classList.remove('on');document.getElementById('drawer').classList.remove('on');}
-function showView(v){document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});document.getElementById('view-'+v).classList.add('on');document.querySelectorAll('#bnav button').forEach(function(b){b.classList.remove('on');});var bn=document.getElementById('bn-'+v);if(bn)bn.classList.add('on');document.querySelectorAll('#drawerNav button[data-v]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});if(v==='home')renderDash();if(v==='tasks')renderAllTasks();if(v==='history')renderFullHistory();window.scrollTo(0,0);closeFab();}
+function showView(v){document.querySelectorAll('.view').forEach(function(x){x.classList.remove('on');});document.getElementById('view-'+v).classList.add('on');document.querySelectorAll('#bnav button').forEach(function(b){b.classList.remove('on');});var bn=document.getElementById('bn-'+v);if(bn)bn.classList.add('on');document.querySelectorAll('#drawerNav button[data-v]').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});if(v==='home')renderDash();if(v==='tasks')renderAllTasks();if(v==='history')renderFullHistory();if(v==='fuelmap')initFuelMap();var fab=document.getElementById('fab');if(fab)fab.style.display=(v==='fuelmap')?'none':'';window.scrollTo(0,0);closeFab();}
 function showTab(t){document.getElementById('pg-dash').classList.toggle('on',t==='dash');document.getElementById('pg-insights').classList.toggle('on',t==='insights');document.getElementById('tab-dash').classList.toggle('on',t==='dash');document.getElementById('tab-insights').classList.toggle('on',t==='insights');if(t==='dash')renderDash();if(t==='insights')renderInsights();window.scrollTo(0,0);}
 
 // ════════ DASHBOARD ════════
@@ -796,8 +862,215 @@ function importData(ev){
   reader.readAsText(file);
 }
 
+// ════════ FUEL MAP ════════
+var fuelMap=null,fuelUserLoc=null,fuelUserMarker=null,fuelMarkers=[],fuelStations=[],fuelLoading=false;
+var fuelFilter={openNow:false,fuel:'regular',maxPrice:null,radius:5};
+// Japan national-average pump prices (¥/L). Free map data has no live per-station
+// pricing, so we estimate around these so the price filter is still useful.
+var JP_AVG={regular:175,highoctane:186,diesel:155};
+var FUEL_SHORT={regular:'Regular',highoctane:'High-oct',diesel:'Diesel'};
+
+var leafletLoaded=false,leafletLoading=null;
+function loadLeaflet(){
+  if(leafletLoaded)return Promise.resolve();
+  if(leafletLoading)return leafletLoading;
+  leafletLoading=new Promise(function(res,rej){
+    var css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);
+    var s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.onload=function(){leafletLoaded=true;res();};
+    s.onerror=function(){rej(new Error('map'));};
+    document.head.appendChild(s);
+  });
+  return leafletLoading;
+}
+function fmStatus(t){var e=document.getElementById('fmStatus');if(e)e.textContent=t;}
+function loadFuelFilter(){try{var r=localStorage.getItem('doctorcar_fuelfilter');if(r)fuelFilter=Object.assign(fuelFilter,JSON.parse(r));}catch(e){}}
+function saveFuelFilter(){try{localStorage.setItem('doctorcar_fuelfilter',JSON.stringify(fuelFilter));}catch(e){}}
+
+function initFuelMap(){
+  loadFuelFilter();updateFilterBadge();
+  loadLeaflet().then(function(){
+    if(!fuelMap){
+      fuelMap=L.map('fuelMap',{zoomControl:true}).setView([35.6812,139.7671],13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(fuelMap);
+    }
+    setTimeout(function(){if(fuelMap)fuelMap.invalidateSize();},250);
+    if(!fuelUserLoc)locateAndLoad();else renderFuelStations();
+  }).catch(function(){fmStatus('⚠ Couldn\'t load the map library — check your connection.');});
+}
+function locateAndLoad(){
+  if(!navigator.geolocation){fmStatus('Geolocation unavailable — showing Tokyo.');fetchStations(35.6812,139.7671);return;}
+  fmStatus('📍 Getting your location…');
+  navigator.geolocation.getCurrentPosition(function(pos){
+    fuelUserLoc={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    fuelMap.setView([fuelUserLoc.lat,fuelUserLoc.lon],14);
+    if(fuelUserMarker)fuelMap.removeLayer(fuelUserMarker);
+    fuelUserMarker=L.circleMarker([fuelUserLoc.lat,fuelUserLoc.lon],{radius:8,color:'#22d3ee',fillColor:'#22d3ee',fillOpacity:.9,weight:3}).addTo(fuelMap).bindPopup('You are here');
+    fetchStations(fuelUserLoc.lat,fuelUserLoc.lon);
+  },function(){
+    fmStatus('⚠ Location denied — showing Tokyo. Move the map & use Filter to search.');
+    fuelUserLoc={lat:35.6812,lon:139.7671};
+    fetchStations(35.6812,139.7671);
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:60000});
+}
+function fetchStations(lat,lon){
+  if(fuelLoading)return;fuelLoading=true;
+  var radius=Math.max(1,Math.min(30,fuelFilter.radius||5))*1000;
+  fmStatus('⛽ Searching stations within '+(radius/1000)+' km…');
+  var q='[out:json][timeout:25];(node["amenity"="fuel"](around:'+radius+','+lat+','+lon+');way["amenity"="fuel"](around:'+radius+','+lat+','+lon+'););out center tags;';
+  tryOverpass(['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'],0,q,lat,lon);
+}
+function tryOverpass(eps,i,q,lat,lon){
+  if(i>=eps.length){fuelLoading=false;fmStatus('⚠ Couldn\'t reach the station database. Retry from the Filter panel.');return;}
+  fetch(eps[i],{method:'POST',body:'data='+encodeURIComponent(q)}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(data){fuelLoading=false;processStations(data,lat,lon);}).catch(function(){tryOverpass(eps,i+1,q,lat,lon);});
+}
+function processStations(data,lat,lon){
+  var els=(data&&data.elements)||[];
+  fuelStations=els.map(function(el){
+    var t=el.tags||{};
+    var slat=el.lat!=null?el.lat:(el.center&&el.center.lat),slon=el.lon!=null?el.lon:(el.center&&el.center.lon);
+    if(slat==null||slon==null)return null;
+    var id=el.type+'/'+el.id;
+    return {id:id,lat:slat,lon:slon,
+      name:t.name||t['name:en']||t.brand||t.operator||'Gas Station',
+      brand:t.brand||t.operator||'',
+      oh:t.opening_hours||'',
+      openNow:isOpenNow(t.opening_hours||''),
+      fuels:detectFuels(t),
+      prices:estimatePrices(id,t),
+      dist:haversine(lat,lon,slat,slon)};
+  }).filter(Boolean);
+  fuelStations.sort(function(a,b){return a.dist-b.dist;});
+  renderFuelStations();
+}
+function haversine(la1,lo1,la2,lo2){var R=6371,r=Math.PI/180,dLa=(la2-la1)*r,dLo=(lo2-lo1)*r,a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)*Math.sin(dLo/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function avail(t,keys,def){for(var i=0;i<keys.length;i++){if(t[keys[i]]!=null)return t[keys[i]]!=='no';}return def;}
+function detectFuels(t){return {
+  regular:avail(t,['fuel:octane_91','fuel:octane_90','fuel:octane_92','fuel:regular'],true),
+  highoctane:avail(t,['fuel:octane_98','fuel:octane_100','fuel:octane_95','fuel:premium'],true),
+  diesel:avail(t,['fuel:diesel'],true)};}
+function hashStr(s){var h=0;for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;}return h;}
+function estimatePrices(id,t){
+  var h=hashStr(id);
+  function jit(seed,spread){var x=Math.abs((h^(seed*2654435761))%1000)/1000;return Math.round((x*2-1)*spread);}
+  var b=((t.brand||t.operator||'')+'').toLowerCase(),adj=0;
+  if(/costco/.test(b))adj=-12;else if(/(self|セルフ)/.test(b))adj=-4;else if(/(eneos|エネオス|idemitsu|出光|cosmo|コスモ|apollo)/.test(b))adj=2;
+  return {regular:JP_AVG.regular+adj+jit(1,6),highoctane:JP_AVG.highoctane+adj+jit(2,6),diesel:JP_AVG.diesel+adj+jit(3,6)};}
+// Lightweight OSM opening_hours check → true / false / null(unknown)
+function isOpenNow(oh){
+  if(!oh)return null;oh=oh.trim();if(!oh)return null;
+  if(/24\s*\/\s*7/.test(oh))return true;
+  var days=['Su','Mo','Tu','We','Th','Fr','Sa'];
+  var now=new Date(),d=now.getDay(),cur=now.getHours()*60+now.getMinutes();
+  var rules=oh.split(';'),sawTime=false;
+  for(var ri=0;ri<rules.length;ri++){
+    var rule=rules[ri].trim();if(!rule)continue;
+    if(/24\/7/.test(rule))return true;
+    var times=rule.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/g);
+    if(!times)continue;
+    var idx=rule.search(/\d{1,2}:\d{2}/);
+    var dayPart=idx>0?rule.slice(0,idx).trim():'';
+    if(dayPartMatches(dayPart,d,days)===false)continue;
+    sawTime=true;
+    for(var ti=0;ti<times.length;ti++){
+      var m=times[ti].match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+      var st=(+m[1])*60+(+m[2]),en=(+m[3])*60+(+m[4]);
+      if(en<=st){if(cur>=st||cur<en)return true;}else{if(cur>=st&&cur<en)return true;}
+    }
+  }
+  return sawTime?false:null;
+}
+function cap2(s){return s.charAt(0).toUpperCase()+s.slice(1,2).toLowerCase();}
+function dayPartMatches(dp,d,days){
+  if(!dp)return true;
+  dp=dp.replace(/PH|SH/g,'').replace(/^[,\s]+|[,\s]+$/g,'');
+  if(!dp)return true;
+  var toks=dp.split(',');
+  for(var i=0;i<toks.length;i++){
+    var tk=toks[i].trim();if(!tk)continue;
+    var range=tk.match(/^([A-Za-z]{2})\s*-\s*([A-Za-z]{2})$/);
+    if(range){
+      var a=days.indexOf(cap2(range[1])),b=days.indexOf(cap2(range[2]));
+      if(a<0||b<0)continue;
+      if(a<=b){if(d>=a&&d<=b)return true;}else{if(d>=a||d<=b)return true;}
+    }else{
+      if(days.indexOf(cap2(tk))===d)return true;
+    }
+  }
+  return false;
+}
+function renderFuelStations(){
+  if(!fuelMap)return;
+  fuelMarkers.forEach(function(m){fuelMap.removeLayer(m);});fuelMarkers=[];
+  var f=fuelFilter;
+  var list=fuelStations.filter(function(s){
+    if(f.openNow&&s.openNow===false)return false;
+    if(s.fuels&&s.fuels[f.fuel]===false)return false;
+    if(f.maxPrice!=null&&f.maxPrice>0&&s.prices[f.fuel]>f.maxPrice)return false;
+    return true;
+  });
+  list.forEach(function(s){
+    var col=s.openNow===true?'#34d399':s.openNow===false?'#f43f5e':'#8b9bb8';
+    var m=L.circleMarker([s.lat,s.lon],{radius:7,color:col,fillColor:col,fillOpacity:.85,weight:2}).addTo(fuelMap);
+    m.bindPopup(fuelPopupHTML(s));fuelMarkers.push(m);
+  });
+  var hidden=fuelStations.length-list.length;
+  fmStatus('⛽ '+list.length+' station'+(list.length===1?'':'s')+' · '+FUEL_SHORT[f.fuel]+(f.maxPrice?' < ¥'+f.maxPrice:'')+(f.openNow?' · open now':'')+(hidden>0?' · '+hidden+' hidden':''));
+  var el=document.getElementById('fmList');
+  if(!fuelStations.length){el.innerHTML='';return;}
+  if(!list.length){el.innerHTML='<div class="empty"><div class="ei">⛽</div>No stations match this filter. Widen the radius or clear filters.</div>';return;}
+  el.innerHTML=list.map(function(s){
+    var ocls=s.openNow===true?'o':s.openNow===false?'c':'u';
+    var otxt=s.openNow===true?'● Open now':s.openNow===false?'● Closed':'○ Hours n/a';
+    return '<div class="fm-card" data-lat="'+s.lat+'" data-lon="'+s.lon+'"><div class="fm-ico">⛽</div><div class="fm-mid"><div class="fm-name">'+escHtml(s.name)+'</div><div class="fm-sub">'+(s.brand?escHtml(s.brand)+' · ':'')+s.dist.toFixed(1)+' km away</div></div><div class="fm-right"><div class="fm-price">¥'+s.prices[f.fuel]+' <small>est</small></div><div class="fm-open '+ocls+'">'+otxt+'</div></div></div>';
+  }).join('')+'<div class="fm-note">Stations & hours from OpenStreetMap. Prices are estimates around Japan national averages — free map data has no live per-station pricing.</div>';
+  el.querySelectorAll('.fm-card').forEach(function(c){c.onclick=function(){
+    var la=+c.getAttribute('data-lat'),lo=+c.getAttribute('data-lon');
+    fuelMap.setView([la,lo],16);
+    var mk=fuelMarkers.find(function(m){var ll=m.getLatLng();return Math.abs(ll.lat-la)<1e-9&&Math.abs(ll.lng-lo)<1e-9;});
+    if(mk)mk.openPopup();
+    window.scrollTo({top:0,behavior:'smooth'});
+  };});
+}
+function fuelPopupHTML(s){
+  var otxt=s.openNow===true?'<b style="color:#059669">Open now</b>':s.openNow===false?'<b style="color:#dc2626">Closed</b>':'<span style="color:#888">Hours n/a</span>';
+  return '<div style="font-weight:700;margin-bottom:2px">'+escHtml(s.name)+'</div>'+(s.brand?'<div style="font-size:11px;color:#777">'+escHtml(s.brand)+'</div>':'')+'<div style="font-size:12px;margin-top:6px;line-height:1.7">Reg ¥'+s.prices.regular+' · Hi ¥'+s.prices.highoctane+' · Diesel ¥'+s.prices.diesel+' <i>(est)</i><br>'+s.dist.toFixed(1)+' km · '+otxt+(s.oh?'<br><span style="font-size:10px;color:#888">'+escHtml(s.oh)+'</span>':'')+'</div><a href="https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lon+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;color:#0891b2;font-weight:700;font-size:12px;text-decoration:none">Directions →</a>';
+}
+function updateFilterBadge(){
+  var n=0;if(fuelFilter.openNow)n++;if(fuelFilter.maxPrice)n++;
+  var b=document.getElementById('fmFilterBtn');if(!b)return;
+  var bd=b.querySelector('.bdg');
+  if(n>0){if(!bd){bd=document.createElement('span');bd.className='bdg';b.appendChild(bd);}bd.textContent=n;}
+  else if(bd){bd.remove();}
+}
+function openFuelFilter(){
+  document.getElementById('fltOpen').checked=!!fuelFilter.openNow;
+  document.getElementById('fltFuel').value=fuelFilter.fuel;
+  document.getElementById('fltPrice').value=fuelFilter.maxPrice||'';
+  document.getElementById('fltRadius').value=fuelFilter.radius||5;
+  document.getElementById('fmFilterDlg').classList.add('on');
+}
+function closeFuelFilter(){document.getElementById('fmFilterDlg').classList.remove('on');}
+function applyFuelFilter(){
+  var oldRadius=fuelFilter.radius;
+  fuelFilter.openNow=document.getElementById('fltOpen').checked;
+  fuelFilter.fuel=document.getElementById('fltFuel').value;
+  fuelFilter.maxPrice=parseInt(document.getElementById('fltPrice').value)||null;
+  fuelFilter.radius=Math.max(1,Math.min(30,parseInt(document.getElementById('fltRadius').value)||5));
+  saveFuelFilter();updateFilterBadge();closeFuelFilter();
+  if(fuelFilter.radius!==oldRadius&&fuelUserLoc)fetchStations(fuelUserLoc.lat,fuelUserLoc.lon);
+  else renderFuelStations();
+}
+function clearFuelFilter(){
+  fuelFilter.openNow=false;fuelFilter.maxPrice=null;
+  document.getElementById('fltOpen').checked=false;
+  document.getElementById('fltPrice').value='';
+  saveFuelFilter();updateFilterBadge();renderFuelStations();
+}
+
 // ════════ INIT ════════
 load();buildDrawer();renderCar();renderDash();
+requestPersistence();hydrateFromIDB();
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
 window.addEventListener('resize',function(){if(document.getElementById('view-home').classList.contains('on'))refreshAll();});
 </script>
