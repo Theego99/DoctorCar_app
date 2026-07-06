@@ -123,6 +123,7 @@ canvas{display:block;max-width:100%}
 label{display:block;font-size:11px;font-family:monospace;color:var(--mu2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
 input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-family:inherit;font-size:14px;padding:11px 12px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .15s}
 input:focus,textarea:focus,select:focus{border-color:var(--cy);box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+input[type=checkbox]{-webkit-appearance:auto;appearance:auto;width:21px;height:21px;min-width:21px;padding:0;border:none;background:none;accent-color:var(--cy);cursor:pointer;flex-shrink:0}
 textarea{resize:vertical;min-height:70px}
 .frow{display:flex;gap:10px}.frow .fg{flex:1}
 .btn{display:block;width:100%;padding:14px;border:none;border-radius:12px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;letter-spacing:.3px}
@@ -196,7 +197,26 @@ textarea{resize:vertical;min-height:70px}
 .fm-note{font-size:10px;color:var(--mu);font-family:monospace;text-align:center;padding:4px 6px 10px;line-height:1.6}
 .leaflet-popup-content{margin:12px 14px;font-family:'Segoe UI',system-ui,sans-serif}
 .fm-live{background:rgba(52,211,153,.16);color:var(--g);font-size:8px;font-family:monospace;font-weight:700;padding:2px 6px;border-radius:20px;letter-spacing:.5px;vertical-align:2px}
-.fm-est{background:rgba(95,110,136,.16);color:var(--mu2);font-size:8px;font-family:monospace;padding:2px 6px;border-radius:20px;vertical-align:2px}
+.fm-nodata{font-size:11px;font-family:monospace;color:var(--mu)}
+.fm-dots{display:inline-flex;gap:3px;align-items:center;height:14px}
+.fm-dots i{width:5px;height:5px;border-radius:50%;background:var(--cy);animation:fmDot 1.2s infinite ease-in-out}
+.fm-dots i:nth-child(2){animation-delay:.2s}
+.fm-dots i:nth-child(3){animation-delay:.4s}
+@keyframes fmDot{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1.15)}}
+/* TIRE CODE DECODER */
+.tc-code{display:flex;justify-content:center;align-items:baseline;gap:2px;font-family:monospace;font-size:30px;font-weight:800;margin:14px 0 4px;flex-wrap:wrap}
+.tc-code span{padding:2px 3px;border-radius:6px}
+.tc-w{color:#22d3ee}.tc-a{color:#a855f7}.tc-r{color:#fbbf24}.tc-d{color:#34d399}.tc-li{color:#fb923c}.tc-sp{color:#f43f5e}
+.tc-row{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--bd)}
+.tc-row:last-child{border-bottom:none}
+.tc-tag{font-family:monospace;font-weight:800;font-size:15px;min-width:44px;text-align:center;border-radius:8px;padding:4px 6px;background:var(--s2);border:1px solid var(--bd2);flex-shrink:0}
+.tc-mean{flex:1}
+.tc-mean b{font-size:13px}
+.tc-mean small{display:block;font-size:11px;color:var(--mu2);margin-top:2px;line-height:1.5}
+.tc-tbl{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}
+.tc-cell{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:5px 4px;text-align:center;font-family:monospace;font-size:11px}
+.tc-cell b{display:block;color:var(--cy);font-size:12px}
+.tc-cell small{color:var(--mu2);font-size:9px}
 /* GARAGE HUB */
 .gtiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-top:4px}
 .gtile{background:linear-gradient(180deg,var(--s),rgba(12,16,24,.55));border:1px solid var(--bd);border-radius:16px;padding:15px 14px;cursor:pointer;position:relative;overflow:hidden}
@@ -598,6 +618,26 @@ textarea{resize:vertical;min-height:70px}
   <div class="frow"><div class="fg"><label>Date</label><input type="date" id="roDate"></div><div class="fg"><label>Odometer</label><input type="number" id="roOdo" inputmode="numeric"></div></div>
   <button class="btn bp" onclick="saveRotation()">Save</button>
   <button class="btn bs" onclick="closeDlg('rotDlg')">Cancel</button>
+</div></div>
+
+<!-- TIRE CODE DECODER -->
+<div class="dlg" id="tireCodeDlg"><div class="box">
+  <h3>📖 Tire Code Decoder</h3>
+  <div class="fg"><label>Type your tire code (from the sidewall)</label><input type="text" id="tcInput" placeholder="195/65R15 91H" autocapitalize="characters" oninput="decodeTireCode()"></div>
+  <div id="tcDisplay"></div>
+  <div class="stitle">Load Index → Max Weight Per Tire</div>
+  <div class="tc-tbl">
+    <div class="tc-cell"><b>82</b>475kg</div><div class="tc-cell"><b>85</b>515kg</div><div class="tc-cell"><b>88</b>560kg</div><div class="tc-cell"><b>91</b>615kg</div>
+    <div class="tc-cell"><b>94</b>670kg</div><div class="tc-cell"><b>95</b>690kg</div><div class="tc-cell"><b>98</b>750kg</div><div class="tc-cell"><b>100</b>800kg</div>
+  </div>
+  <div class="stitle">Speed Rating → Max Speed</div>
+  <div class="tc-tbl">
+    <div class="tc-cell"><b>Q</b>160km/h<small> studless</small></div><div class="tc-cell"><b>S</b>180km/h</div><div class="tc-cell"><b>T</b>190km/h</div><div class="tc-cell"><b>H</b>210km/h</div>
+    <div class="tc-cell"><b>V</b>240km/h</div><div class="tc-cell"><b>W</b>270km/h</div><div class="tc-cell"><b>Y</b>300km/h</div><div class="tc-cell"><b>ZR</b>240+km/h</div>
+  </div>
+  <div class="stitle">Bonus: Age Code (DOT)</div>
+  <div style="font-size:12px;color:var(--mu2);line-height:1.8">Sidewall says <b style="font-family:monospace;color:var(--cy)">DOT ···· 2323</b> → made week <b>23</b> of 20<b>23</b>.<br>⚠️ Replace tires over 5–6 years old regardless of tread — rubber hardens and grip fades.</div>
+  <button class="btn bs" style="margin-top:14px" onclick="closeDlg('tireCodeDlg')">Close</button>
 </div></div>
 
 <!-- CHECKLIST RUN -->
@@ -1143,8 +1183,12 @@ var fuelMap=null,fuelUserLoc=null,fuelUserMarker=null,fuelMarkers=[],fuelStation
 var fuelFilter={openNow:false,fuel:'regular',maxPrice:null,radius:5};
 // Japan national-average pump prices (¥/L). Free map data has no live per-station
 // pricing, so we estimate around these so the price filter is still useful.
-var JP_AVG={regular:175,highoctane:186,diesel:155};
 var FUEL_SHORT={regular:'Regular',highoctane:'High-oct',diesel:'Diesel'};
+// livePriceStatus: idle → loading → done | failed. No fake numbers are ever
+// shown: while loading each station shows animated dots, after that it's
+// either a real gogo.gs price (LIVE) or an honest "no data".
+var livePriceStatus='idle';
+function priceOf(s,fuel){return s.live&&s.live.price&&s.live.price[fuel]?Math.round(s.live.price[fuel]):null;}
 
 var leafletLoaded=false,leafletLoading=null;
 function loadLeaflet(){
@@ -1213,7 +1257,6 @@ function processStations(data,lat,lon){
       oh:t.opening_hours||'',
       openNow:isOpenNow(t.opening_hours||''),
       fuels:detectFuels(t),
-      prices:estimatePrices(id,t),
       dist:haversine(lat,lon,slat,slon)};
   }).filter(Boolean);
   fuelStations.sort(function(a,b){return a.dist-b.dist;});
@@ -1226,13 +1269,6 @@ function detectFuels(t){return {
   regular:avail(t,['fuel:octane_91','fuel:octane_90','fuel:octane_92','fuel:regular'],true),
   highoctane:avail(t,['fuel:octane_98','fuel:octane_100','fuel:octane_95','fuel:premium'],true),
   diesel:avail(t,['fuel:diesel'],true)};}
-function hashStr(s){var h=0;for(var i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))|0;}return h;}
-function estimatePrices(id,t){
-  var h=hashStr(id);
-  function jit(seed,spread){var x=Math.abs((h^(seed*2654435761))%1000)/1000;return Math.round((x*2-1)*spread);}
-  var b=((t.brand||t.operator||'')+'').toLowerCase(),adj=0;
-  if(/costco/.test(b))adj=-12;else if(/(self|セルフ)/.test(b))adj=-4;else if(/(eneos|エネオス|idemitsu|出光|cosmo|コスモ|apollo)/.test(b))adj=2;
-  return {regular:JP_AVG.regular+adj+jit(1,6),highoctane:JP_AVG.highoctane+adj+jit(2,6),diesel:JP_AVG.diesel+adj+jit(3,6)};}
 // Lightweight OSM opening_hours check → true / false / null(unknown)
 function isOpenNow(oh){
   if(!oh)return null;oh=oh.trim();if(!oh)return null;
@@ -1283,7 +1319,12 @@ function renderFuelStations(){
   var list=fuelStations.filter(function(s){
     if(f.openNow&&s.openNow===false)return false;
     if(s.fuels&&s.fuels[f.fuel]===false)return false;
-    if(f.maxPrice!=null&&f.maxPrice>0&&s.prices[f.fuel]>f.maxPrice)return false;
+    if(f.maxPrice!=null&&f.maxPrice>0){
+      var pv=priceOf(s,f.fuel);
+      // price filter needs a real price — while still loading, keep stations visible
+      if(pv!=null&&pv>f.maxPrice)return false;
+      if(pv==null&&livePriceStatus!=='loading')return false;
+    }
     return true;
   });
   list.forEach(function(s){
@@ -1300,9 +1341,13 @@ function renderFuelStations(){
   el.innerHTML=list.map(function(s){
     var ocls=s.openNow===true?'o':s.openNow===false?'c':'u';
     var otxt=s.openNow===true?'● Open now':s.openNow===false?'● Closed':'○ Hours n/a';
-    var hasP=s.live&&s.live.price[f.fuel];
-    return '<div class="fm-card" data-lat="'+s.lat+'" data-lon="'+s.lon+'"><div class="fm-ico">⛽</div><div class="fm-mid"><div class="fm-name">'+escHtml(s.name)+'</div><div class="fm-sub">'+(s.brand?escHtml(s.brand)+' · ':'')+s.dist.toFixed(1)+' km'+(s.live&&s.live.self?' · self':'')+'</div></div><div class="fm-right"><div class="fm-price">¥'+s.prices[f.fuel]+' <span class="'+(hasP?'fm-live':'fm-est')+'">'+(hasP?'LIVE':'est')+'</span></div><div class="fm-open '+ocls+'">'+otxt+'</div></div></div>';
-  }).join('')+'<div class="fm-note">'+(liveN?'💹 LIVE prices are crowd-reports from gogo.gs'+(liveInfo&&liveInfo.ts?' (fetched '+new Date(liveInfo.ts).toLocaleTimeString().slice(0,5)+')':'')+'. ':'')+'Stations & hours from OpenStreetMap'+(liveN?'':'; prices are estimates until live data loads')+'. est = estimate calibrated to your area.</div>';
+    var pv=priceOf(s,f.fuel);
+    var priceHtml;
+    if(pv!=null)priceHtml='<div class="fm-price">¥'+pv+' <span class="fm-live">LIVE</span></div>';
+    else if(livePriceStatus==='loading')priceHtml='<div class="fm-dots"><i></i><i></i><i></i></div>';
+    else priceHtml='<div class="fm-nodata">no data</div>';
+    return '<div class="fm-card" data-lat="'+s.lat+'" data-lon="'+s.lon+'"><div class="fm-ico">⛽</div><div class="fm-mid"><div class="fm-name">'+escHtml(s.name)+'</div><div class="fm-sub">'+(s.brand?escHtml(s.brand)+' · ':'')+s.dist.toFixed(1)+' km'+(s.live&&s.live.self?' · self':'')+'</div></div><div class="fm-right">'+priceHtml+'<div class="fm-open '+ocls+'">'+otxt+'</div></div></div>';
+  }).join('')+'<div class="fm-note">'+(liveN?'💹 LIVE prices are crowd-reports from gogo.gs'+(liveInfo&&liveInfo.ts?' (fetched '+new Date(liveInfo.ts).toLocaleTimeString().slice(0,5)+')':'')+'. ':livePriceStatus==='loading'?'💹 Fetching live prices from gogo.gs… ':'')+'Stations & hours from OpenStreetMap. "no data" = nobody has reported a price for that station recently.</div>';
   el.querySelectorAll('.fm-card').forEach(function(c){c.onclick=function(){
     var la=+c.getAttribute('data-lat'),lo=+c.getAttribute('data-lon');
     fuelMap.setView([la,lo],16);
@@ -1319,8 +1364,10 @@ function fuelPopupHTML(s){
     pl='<span style="background:#05966922;color:#059669;font-weight:700;font-size:10px;padding:1px 6px;border-radius:8px">LIVE gogo.gs'+(s.live.date?' '+s.live.date:'')+'</span><br>'+
        (lp.regular?'Reg <b>¥'+lp.regular+'</b>':'')+(lp.highoctane?' · Hi <b>¥'+lp.highoctane+'</b>':'')+(lp.diesel?' · Diesel <b>¥'+lp.diesel+'</b>':'')+
        (s.live.member&&s.live.member.r?'<br><span style="font-size:10px;color:#888">member: ¥'+s.live.member.r.v+' reg</span>':'');
+  }else if(livePriceStatus==='loading'){
+    pl='<i style="color:#888">Loading live prices…</i>';
   }else{
-    pl='Reg ¥'+s.prices.regular+' · Hi ¥'+s.prices.highoctane+' · Diesel ¥'+s.prices.diesel+' <i>(est)</i>';
+    pl='<i style="color:#888">No price data — no recent reports for this station on gogo.gs</i>';
   }
   return '<div style="font-weight:700;margin-bottom:2px">'+escHtml(s.name)+'</div>'+(s.brand?'<div style="font-size:11px;color:#777">'+escHtml(s.brand)+'</div>':'')+'<div style="font-size:12px;margin-top:6px;line-height:1.7">'+pl+'<br>'+s.dist.toFixed(1)+' km · '+otxt+(s.oh?'<br><span style="font-size:10px;color:#888">'+escHtml(s.oh)+'</span>':'')+'</div><a href="https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lon+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;color:#0891b2;font-weight:700;font-size:12px;text-decoration:none">Directions →</a>';
 }
@@ -1575,7 +1622,8 @@ function renderTires(){
     +'<button class="btn bs" onclick="openTireSet()">+ Add Tire Set</button>'
     +(T.sets.length>1?'<button class="btn bp" onclick="openTireSwap()">🔄 Log Seasonal Swap</button>':'')
     +'<button class="btn bs" onclick="openTread()">📏 Log Tread Depth</button>'
-    +'<button class="btn bs" onclick="openRotation()">🔃 Log Rotation</button></div>';
+    +'<button class="btn bs" onclick="openRotation()">🔃 Log Rotation</button>'
+    +'<button class="btn bs" onclick="openTireCode()">📖 What do tire codes mean?</button></div>';
   var tr=T.treads.length?T.treads[T.treads.length-1]:null;
   if(tr){
     function tcol(v){return v>=4?'var(--g)':v>=3?'var(--y)':'var(--r)';}
@@ -1614,6 +1662,36 @@ function saveTread(){
   save();closeDlg('treadDlg');renderTires();
 }
 function openRotation(){document.getElementById('roDate').value=new Date().toISOString().slice(0,10);document.getElementById('roOdo').value=S.odo;document.getElementById('rotDlg').classList.add('on');}
+// ── Tire code decoder ──
+var SPEED_KMH={L:120,M:130,N:140,P:150,Q:160,R:170,S:180,T:190,U:200,H:210,V:240,W:270,Y:300};
+var LOAD_KG={60:250,65:290,70:335,75:387,80:450,81:462,82:475,83:487,84:500,85:515,86:530,87:545,88:560,89:580,90:600,91:615,92:630,93:650,94:670,95:690,96:710,97:730,98:750,99:775,100:800,101:825,102:850,103:875,104:900,105:925,106:950,107:975,108:1000};
+function openTireCode(){
+  // default to the user's registered tire size if we can find one
+  var guess='195/65R15 91H';
+  var tireItem=S.items.find(function(i){return i.id==='tires';});
+  if(tireItem&&tireItem.prod){var mm=tireItem.prod.match(/\d{3}\/\d{2}R\d{2}(?:\s*\d{2,3}[A-Z])?/);if(mm)guess=mm[0];}
+  document.getElementById('tcInput').value=guess;
+  decodeTireCode();
+  document.getElementById('tireCodeDlg').classList.add('on');
+}
+function decodeTireCode(){
+  var el=document.getElementById('tcDisplay');
+  var raw=(document.getElementById('tcInput').value||'').toUpperCase();
+  var m=raw.match(/(\d{3})\s*\/\s*(\d{2})\s*(R|D|B|ZR)\s*(\d{2})(?:\s*(\d{2,3}))?\s*([A-Z])?/);
+  if(!m){el.innerHTML='<div class="empty" style="padding:18px 0"><div class="ei">🛞</div>Type a code like <b style="color:var(--cy);font-family:monospace">195/65R15 91H</b> — it\'s printed on the tire sidewall.</div>';return;}
+  var w=+m[1],ar=+m[2],con=m[3],rim=+m[4],li=m[5]?+m[5]:null,sp=m[6]||null;
+  var side=Math.round(w*ar/100),diam=Math.round(rim*25.4+2*side);
+  var conTxt=con==='R'?'Radial construction — standard for all modern car tires':con==='ZR'?'Radial, high-performance (240km/h+)':con==='D'?'Diagonal/bias-ply — old-style, rare today':'Bias-belted — very rare';
+  var h='<div class="tc-code"><span class="tc-w">'+w+'</span><span style="color:var(--mu)">/</span><span class="tc-a">'+ar+'</span><span class="tc-r">'+con+'</span><span class="tc-d">'+rim+'</span>'+(li?'&nbsp;<span class="tc-li">'+li+'</span>':'')+(sp?'<span class="tc-sp">'+sp+'</span>':'')+'</div>';
+  h+='<div style="text-align:center;font-size:11px;color:var(--mu);font-family:monospace;margin-bottom:10px">≈ '+diam+'mm total diameter · '+side+'mm sidewall</div>';
+  h+='<div class="tc-row"><div class="tc-tag tc-w">'+w+'</div><div class="tc-mean"><b>Width: '+w+' mm</b><small>How wide the tread is. Wider = more grip, more fuel, more road noise.</small></div></div>';
+  h+='<div class="tc-row"><div class="tc-tag tc-a">'+ar+'</div><div class="tc-mean"><b>Aspect ratio: '+ar+'%</b><small>Sidewall height as % of width — here '+side+'mm. Lower = sportier feel, harsher ride.</small></div></div>';
+  h+='<div class="tc-row"><div class="tc-tag tc-r">'+con+'</div><div class="tc-mean"><b>'+(con==='ZR'?'ZR — high-speed radial':con+' — construction')+'</b><small>'+conTxt+'.</small></div></div>';
+  h+='<div class="tc-row"><div class="tc-tag tc-d">'+rim+'</div><div class="tc-mean"><b>Rim diameter: '+rim+'"</b><small>The wheel size it fits, in inches ('+Math.round(rim*25.4)+'mm).</small></div></div>';
+  if(li!=null)h+='<div class="tc-row"><div class="tc-tag tc-li">'+li+'</div><div class="tc-mean"><b>Load index: '+(LOAD_KG[li]?LOAD_KG[li]+' kg max per tire':li)+'</b><small>'+(LOAD_KG[li]?'×4 tires = '+fn(LOAD_KG[li]*4)+' kg total. Never fit a lower index than the door-jamb sticker.':'Max weight each tire can carry — check the chart below.')+'</small></div></div>';
+  if(sp)h+='<div class="tc-row"><div class="tc-tag tc-sp">'+sp+'</div><div class="tc-mean"><b>Speed rating: '+(SPEED_KMH[sp]?SPEED_KMH[sp]+' km/h max':sp)+'</b><small>'+(sp==='Q'?'Typical for studless/winter tires.':'Sustained safe top speed when correctly inflated & loaded.')+'</small></div></div>';
+  el.innerHTML=h;
+}
 function saveRotation(){
   var d=document.getElementById('roDate').value,o=parseInt(document.getElementById('roOdo').value)||0;
   if(!d||!o){alert('Enter date and odometer.');return;}
@@ -1769,6 +1847,7 @@ function fetchT(url,ms){return Promise.race([fetch(url),new Promise(function(_,r
 function refreshLivePrices(){closeFuelFilter();if(fuelUserLoc)fetchLivePrices(fuelUserLoc.lat,fuelUserLoc.lon,true);else fmStatus('⚠ Need your location first.');}
 function fetchLivePrices(lat,lon,force){
   if(liveFetching)return;liveFetching=true;
+  livePriceStatus='loading';renderFuelStations();
   fetchT('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat='+lat+'&lon='+lon,15000)
   .then(function(r){return r.json();})
   .then(function(j){
@@ -1786,7 +1865,7 @@ function fetchLivePrices(lat,lon,force){
       });
     });
   })
-  .catch(function(e){liveFetching=false;fmStatus('⚠ Live prices unavailable ('+e.message+') — showing estimates.');});
+  .catch(function(e){liveFetching=false;livePriceStatus='failed';renderFuelStations();fmStatus('⚠ Live prices unavailable ('+e.message+') — retry from the Filter panel.');});
 }
 function fetchGogoPages(muni,maxPages){
   var all=[];
@@ -1846,31 +1925,23 @@ function applyLive(gsts,ts){
   fuelStations=fuelStations.filter(function(s){return s.src!=='gogo';});
   fuelStations.forEach(function(s){delete s.live;});
   var lat=fuelUserLoc?fuelUserLoc.lat:null,lon=fuelUserLoc?fuelUserLoc.lon:null;
-  var liveR=[];
   gsts.forEach(function(g){
     var price={regular:g.cash.r?g.cash.r.v:(g.member.r?g.member.r.v:null),
                highoctane:g.cash.h?g.cash.h.v:(g.member.h?g.member.h.v:null),
                diesel:g.cash.d?g.cash.d.v:(g.member.d?g.member.d.v:null)};
     if(!price.regular&&!price.highoctane&&!price.diesel)return;
-    if(price.regular)liveR.push(price.regular);
     if(g.lat==null)return;
     liveInfo.n++;
     var host=null,bd=1e9;
     fuelStations.forEach(function(s){var d=haversine(g.lat,g.lon,s.lat,s.lon);if(d<bd){bd=d;host=s;}});
     if(host&&bd<0.15){ // within 150m → same station
       host.live={price:price,member:g.member,cash:g.cash,date:(g.cash.r&&g.cash.r.d)||(g.member.r&&g.member.r.d)||'',self:g.self,gname:g.name};
-      ['regular','highoctane','diesel'].forEach(function(k){if(price[k])host.prices[k]=Math.round(price[k]);});
       if(!host.oh&&g.oh){host.oh=g.oh;host.openNow=isOpenNow(g.oh);}
     }else{
-      fuelStations.push({id:'gogo/'+g.sid,src:'gogo',lat:g.lat,lon:g.lon,name:g.name.split(' / ')[0],brand:g.name.split(' / ')[1]||'',oh:g.oh,openNow:isOpenNow(g.oh),fuels:{regular:!!price.regular,highoctane:!!price.highoctane,diesel:!!price.diesel},prices:{regular:Math.round(price.regular||JP_AVG.regular),highoctane:Math.round(price.highoctane||JP_AVG.highoctane),diesel:Math.round(price.diesel||JP_AVG.diesel)},dist:lat!=null?haversine(lat,lon,g.lat,g.lon):0,live:{price:price,member:g.member,cash:g.cash,date:(g.cash.r&&g.cash.r.d)||'',self:g.self,gname:g.name}});
+      fuelStations.push({id:'gogo/'+g.sid,src:'gogo',lat:g.lat,lon:g.lon,name:g.name.split(' / ')[0],brand:g.name.split(' / ')[1]||'',oh:g.oh,openNow:isOpenNow(g.oh),fuels:{regular:!!price.regular,highoctane:!!price.highoctane,diesel:!!price.diesel},dist:lat!=null?haversine(lat,lon,g.lat,g.lon):0,live:{price:price,member:g.member,cash:g.cash,date:(g.cash.r&&g.cash.r.d)||'',self:g.self,gname:g.name}});
     }
   });
-  // recalibrate estimates around the real local median
-  if(liveR.length>=3){
-    liveR.sort(function(a,b){return a-b;});
-    var med=liveR[Math.floor(liveR.length/2)],shift=med-JP_AVG.regular;
-    fuelStations.forEach(function(s){if(!s.live){s.prices.regular+=shift;s.prices.highoctane+=shift;s.prices.diesel+=shift;}});
-  }
+  livePriceStatus='done';
   fuelStations.sort(function(a,b){return a.dist-b.dist;});
   renderFuelStations();
 }
