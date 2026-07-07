@@ -180,6 +180,8 @@ textarea{resize:vertical;min-height:70px}
 #fuelMap{width:100%;height:52dvh;min-height:280px;background:var(--s2);border-bottom:1px solid var(--bd);z-index:1}
 .fm-status{padding:10px 16px;font-size:12px;font-family:monospace;color:var(--mu2);background:var(--s);border-bottom:1px solid var(--bd);letter-spacing:.3px}
 .fm-filter-btn{position:fixed;bottom:calc(78px + env(safe-area-inset-bottom,0px));right:18px;z-index:46;background:linear-gradient(135deg,var(--cy),var(--vi));color:#05070d;border:none;border-radius:16px;padding:13px 17px;font-family:inherit;font-size:14px;font-weight:800;letter-spacing:.3px;cursor:pointer;box-shadow:0 6px 22px rgba(34,211,238,.45);display:flex;align-items:center;gap:8px}
+.fm-search-area{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:20;background:var(--s);color:var(--cy);border:1px solid var(--cy);border-radius:20px;padding:9px 16px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5);display:none;white-space:nowrap}
+.fm-search-area.on{display:block;animation:updIn .25s ease}
 .fm-filter-btn:active{opacity:.88}
 .fm-filter-btn .bdg{background:#05070d;color:var(--cy);border-radius:20px;font-size:11px;font-family:monospace;padding:1px 7px;font-weight:700}
 .fm-list{padding:12px 14px 20px}
@@ -358,6 +360,7 @@ textarea{resize:vertical;min-height:70px}
 <div class="view" id="view-fuelmap">
   <div class="fm-wrap">
     <div id="fuelMap"></div>
+    <button id="fmSearchArea" class="fm-search-area" onclick="searchThisArea()">🔄 Search this area</button>
     <div id="fmStatus" class="fm-status">Tap to load nearby gas stations…</div>
     <div id="fmList" class="fm-list"></div>
     <button id="fmFilterBtn" class="fm-filter-btn" onclick="openFuelFilter()"><span>⚙ Filter</span></button>
@@ -1191,7 +1194,7 @@ function importData(ev){
 }
 
 // ════════ FUEL MAP ════════
-var fuelMap=null,fuelUserLoc=null,fuelUserMarker=null,fuelMarkers=[],fuelStations=[],fuelLoading=false;
+var fuelMap=null,fuelUserLoc=null,fuelUserMarker=null,fuelMarkers=[],fuelStations=[],fuelLoading=false,fuelSearchCenter=null;
 var fuelFilter={openNow:false,fuel:'regular',maxPrice:null,radius:5};
 // Japan national-average pump prices (¥/L). Free map data has no live per-station
 // pricing, so we estimate around these so the price filter is still useful.
@@ -1225,6 +1228,12 @@ function initFuelMap(){
     if(!fuelMap){
       fuelMap=L.map('fuelMap',{zoomControl:true}).setView([35.6812,139.7671],13);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(fuelMap);
+      // when the user pans away from the last search point, offer to search the new area
+      fuelMap.on('moveend',function(){
+        if(!fuelSearchCenter||fuelLoading||liveFetching)return;
+        var c=fuelMap.getCenter(),d=haversine(c.lat,c.lng,fuelSearchCenter.lat,fuelSearchCenter.lon);
+        document.getElementById('fmSearchArea').classList.toggle('on',d>1.5);
+      });
     }
     setTimeout(function(){if(fuelMap)fuelMap.invalidateSize();},250);
     if(!fuelUserLoc)locateAndLoad();else renderFuelStations();
@@ -1247,14 +1256,23 @@ function locateAndLoad(){
 }
 function fetchStations(lat,lon){
   if(fuelLoading)return;fuelLoading=true;
+  fuelSearchCenter={lat:lat,lon:lon};
+  document.getElementById('fmSearchArea').classList.remove('on');
   var radius=Math.max(1,Math.min(30,fuelFilter.radius||5))*1000;
   fmStatus('⛽ Searching stations within '+(radius/1000)+' km…');
   var q='[out:json][timeout:25];(node["amenity"="fuel"](around:'+radius+','+lat+','+lon+');way["amenity"="fuel"](around:'+radius+','+lat+','+lon+'););out center tags;';
-  tryOverpass(['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'],0,q,lat,lon);
+  tryOverpass(['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass.private.coffee/api/interpreter'],0,q,lat,lon);
 }
 function tryOverpass(eps,i,q,lat,lon){
-  if(i>=eps.length){fuelLoading=false;fmStatus('⚠ Couldn\'t reach the station database. Retry from the Filter panel.');return;}
-  fetch(eps[i],{method:'POST',body:'data='+encodeURIComponent(q)}).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(data){fuelLoading=false;processStations(data,lat,lon);}).catch(function(){tryOverpass(eps,i+1,q,lat,lon);});
+  if(i>=eps.length){
+    fuelLoading=false;
+    // don't blank the map — keep whatever we already have, still try live prices
+    if(fuelStations.length){fmStatus('⚠ Map server busy — showing last results. Tap "Search this area" to retry.');renderFuelStations();}
+    else fmStatus('⚠ Couldn\'t reach the station database. Tap "Search this area" to retry.');
+    if(fuelSearchCenter)fetchLivePrices(fuelSearchCenter.lat,fuelSearchCenter.lon,false);
+    return;
+  }
+  fetchT(eps[i]+'?data='+encodeURIComponent(q),28000).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(data){fuelLoading=false;processStations(data,lat,lon);}).catch(function(){tryOverpass(eps,i+1,q,lat,lon);});
 }
 function processStations(data,lat,lon){
   var els=(data&&data.elements)||[];
@@ -1273,7 +1291,8 @@ function processStations(data,lat,lon){
   }).filter(Boolean);
   fuelStations.sort(function(a,b){return a.dist-b.dist;});
   renderFuelStations();
-  if(fuelUserLoc)fetchLivePrices(fuelUserLoc.lat,fuelUserLoc.lon,false);
+  var c=fuelSearchCenter||fuelUserLoc;
+  if(c)fetchLivePrices(c.lat,c.lon,false);
 }
 function haversine(la1,lo1,la2,lo2){var R=6371,r=Math.PI/180,dLa=(la2-la1)*r,dLo=(lo2-lo1)*r,a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(la1*r)*Math.cos(la2*r)*Math.sin(dLo/2)*Math.sin(dLo/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
 function avail(t,keys,def){for(var i=0;i<keys.length;i++){if(t[keys[i]]!=null)return t[keys[i]]!=='no';}return def;}
@@ -1859,41 +1878,54 @@ function restoreSnapshot(key){
 var liveFetching=false,liveInfo=null;
 var GEO_CACHE={};try{GEO_CACHE=JSON.parse(localStorage.getItem('doctorcar_geo')||'{}');}catch(e){}
 function fetchT(url,ms){return Promise.race([fetch(url),new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);}
-function refreshLivePrices(){closeFuelFilter();if(fuelUserLoc)fetchLivePrices(fuelUserLoc.lat,fuelUserLoc.lon,true);else fmStatus('⚠ Need your location first.');}
+function gogoCache(){try{return JSON.parse(localStorage.getItem('doctorcar_gogo')||'null');}catch(e){return null;}}
+function refreshLivePrices(){closeFuelFilter();var c=fuelSearchCenter||fuelUserLoc;if(c)fetchLivePrices(c.lat,c.lon,true);else fmStatus('⚠ Need your location first.');}
 function fetchLivePrices(lat,lon,force){
   if(liveFetching)return;liveFetching=true;
   livePriceStatus='loading';renderFuelStations();
+  var muni=null;
   fetchT('https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat='+lat+'&lon='+lon,15000)
   .then(function(r){return r.json();})
   .then(function(j){
-    var muni=j&&j.results&&j.results.muniCd;
+    muni=j&&j.results&&j.results.muniCd;
     if(!muni)throw new Error('not in Japan?');
-    var cached=null;try{cached=JSON.parse(localStorage.getItem('doctorcar_gogo')||'null');}catch(e){}
-    if(!force&&cached&&cached.muniCd===muni&&(Date.now()-cached.ts)<21600000){liveFetching=false;applyLive(cached.stations,cached.ts);return null;}
-    fmStatus('💹 Fetching live prices for your area (gogo.gs)… ~20s');
-    return fetchGogoPages(muni,2).then(function(sts){
-      if(!sts.length)throw new Error('no stations found');
+    // stale-while-revalidate: if we have cache for this area, paint it instantly
+    // (so the map isn't empty), but ALWAYS re-fetch fresh below so it self-heals.
+    var cached=gogoCache();
+    if(cached&&cached.muniCd===muni&&cached.stations&&cached.stations.length){applyLive(cached.stations,cached.ts);}
+    // skip the network refetch only if the cache is very fresh (<3 min) and not forced
+    if(!force&&cached&&cached.muniCd===muni&&(Date.now()-cached.ts)<180000){liveFetching=false;livePriceStatus='done';renderFuelStations();return null;}
+    fmStatus('💹 Refreshing live prices (gogo.gs)… ~20s');
+    return fetchGogoPages(muni,4).then(function(sts){
+      if(!sts.length){liveFetching=false;livePriceStatus='done';renderFuelStations();return;}
       fmStatus('📍 Locating '+sts.length+' priced stations…');
       return geocodeAll(sts).then(function(){
         try{localStorage.setItem('doctorcar_gogo',JSON.stringify({muniCd:muni,ts:Date.now(),stations:sts}));}catch(e){}
-        liveFetching=false;applyLive(sts,Date.now());
+        liveFetching=false;livePriceStatus='done';applyLive(sts,Date.now());
       });
     });
   })
-  .catch(function(e){liveFetching=false;livePriceStatus='failed';renderFuelStations();fmStatus('⚠ Live prices unavailable ('+e.message+') — retry from the Filter panel.');});
+  .catch(function(e){
+    liveFetching=false;
+    // keep any cache we painted; only flip to "no data" if we truly have nothing live
+    livePriceStatus='done';renderFuelStations();
+    if(!fuelStations.some(function(s){return s.live;}))fmStatus('⚠ Live prices unavailable ('+e.message+'). Stations shown from map data.');
+  });
 }
 function fetchGogoPages(muni,maxPages){
-  var all=[];
+  var all=[],seen={};
   function one(p){
     return fetchT('https://r.jina.ai/https://gogo.gs/search/?ac='+muni+(p>1?'%26page='+p:''),60000)
       .then(function(r){if(!r.ok)throw new Error('proxy '+r.status);return r.text();})
       .then(function(md){
-        var sts=parseGogoMd(md);
-        all=all.concat(sts);
+        var sts=parseGogoMd(md),added=0;
+        sts.forEach(function(s){if(!seen[s.sid]){seen[s.sid]=1;all.push(s);added++;}});
         var priced=all.filter(function(s){return s.cash.r||s.member.r;}).length;
-        if(p<maxPages&&sts.length>=10){fmStatus('💹 Live prices: '+priced+' priced so far, page '+(p+1)+'…');return one(p+1);}
+        fmStatus('💹 gogo.gs: '+priced+' priced · '+all.length+' stations (page '+p+')…');
+        if(p<maxPages&&added>0)return one(p+1); // keep paging while new stations appear
         return all;
-      });
+      })
+      .catch(function(){return all;}); // a failed page shouldn't kill earlier pages
   }
   return one(1);
 }
@@ -1939,7 +1971,7 @@ function applyLive(gsts,ts){
   // strip previous live merges/additions
   fuelStations=fuelStations.filter(function(s){return s.src!=='gogo';});
   fuelStations.forEach(function(s){delete s.live;});
-  var lat=fuelUserLoc?fuelUserLoc.lat:null,lon=fuelUserLoc?fuelUserLoc.lon:null;
+  var ctr=fuelSearchCenter||fuelUserLoc;var lat=ctr?ctr.lat:null,lon=ctr?ctr.lon:null;
   gsts.forEach(function(g){
     var price={regular:g.cash.r?g.cash.r.v:(g.member.r?g.member.r.v:null),
                highoctane:g.cash.h?g.cash.h.v:(g.member.h?g.member.h.v:null),
@@ -1956,13 +1988,18 @@ function applyLive(gsts,ts){
       fuelStations.push({id:'gogo/'+g.sid,src:'gogo',lat:g.lat,lon:g.lon,name:g.name.split(' / ')[0],brand:g.name.split(' / ')[1]||'',oh:g.oh,openNow:isOpenNow(g.oh),fuels:{regular:!!price.regular,highoctane:!!price.highoctane,diesel:!!price.diesel},dist:lat!=null?haversine(lat,lon,g.lat,g.lon):0,live:{price:price,member:g.member,cash:g.cash,date:(g.cash.r&&g.cash.r.d)||'',self:g.self,gname:g.name}});
     }
   });
-  livePriceStatus='done';
   fuelStations.sort(function(a,b){return a.dist-b.dist;});
   renderFuelStations();
 }
+function searchThisArea(){
+  if(!fuelMap)return;
+  var c=fuelMap.getCenter();
+  document.getElementById('fmSearchArea').classList.remove('on');
+  fetchStations(c.lat,c.lng); // fetches OSM stations then live prices for this center
+}
 
 // ════════ VERSION & AUTO-UPDATE ════════
-var APP_VERSION='v7';
+var APP_VERSION='v8';
 var swReg=null;
 function setVerTag(t){var e=document.getElementById('verTag');if(e)e.textContent='DoctorCar '+APP_VERSION+(t?' · '+t:'');}
 function showUpdBar(){document.getElementById('updBar').classList.add('on');setVerTag('update ready');}
