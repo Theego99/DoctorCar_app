@@ -1,10 +1,17 @@
 // Bump CACHE version whenever you update the app to force phones to refresh.
-const CACHE='doctorcar-v6';
+const CACHE='doctorcar-v7';
 const ASSETS=['./','./index.html','./manifest.json','./doctorcar-icon-192.png','./doctorcar-icon-512.png'];
 
 self.addEventListener('install',e=>{
-  self.skipWaiting(); // activate new SW immediately
+  // Do NOT skipWaiting here — the new worker waits until the page tells it to,
+  // so the app can show a "New version ready" banner instead of reloading
+  // unexpectedly under the user.
   e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).catch(()=>{}));
+});
+
+// The page posts 'skipWaiting' when the user taps "Update now".
+self.addEventListener('message',e=>{
+  if(e.data==='skipWaiting') self.skipWaiting();
 });
 
 self.addEventListener('activate',e=>{
