@@ -260,6 +260,14 @@ textarea{resize:vertical;min-height:70px}
 .stat-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
 .snap-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bd);font-size:12px;font-family:monospace}
 .snap-row:last-child{border-bottom:none}
+/* VERSION + UPDATE */
+.dfoot{padding:12px 20px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--bd);font-family:monospace;font-size:11px;color:var(--mu);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dfoot .vtag{color:var(--mu2)}
+.dfoot .vchk{background:var(--s2);border:1px solid var(--bd2);color:var(--cy);border-radius:8px;font-size:10px;font-family:monospace;font-weight:700;padding:5px 9px;cursor:pointer}
+#updBar{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom,0px));z-index:120;margin:0 12px;background:linear-gradient(135deg,var(--cy),var(--vi));color:#05070d;border-radius:12px;padding:11px 14px;display:none;align-items:center;gap:10px;box-shadow:0 6px 24px rgba(34,211,238,.45);font-weight:700;font-size:13px}
+#updBar.on{display:flex;animation:updIn .3s ease}
+@keyframes updIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+#updBar button{background:#05070d;color:var(--cy);border:none;border-radius:8px;padding:8px 12px;font-family:inherit;font-weight:800;font-size:13px;cursor:pointer;margin-left:auto;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -274,7 +282,11 @@ textarea{resize:vertical;min-height:70px}
     <div style="font-size:10px;color:var(--cy);font-family:monospace;margin-top:6px;letter-spacing:.5px">✎ TAP TO EDIT</div>
   </div>
   <div class="dnav" id="drawerNav"></div>
+  <div class="dfoot"><span class="vtag" id="verTag">DoctorCar</span><button class="vchk" onclick="checkForUpdate(true)">Check for update</button></div>
 </div>
+
+<!-- UPDATE BANNER -->
+<div id="updBar">🚀 New version ready<button onclick="applyUpdate()">Update now</button></div>
 
 <!-- TOPBAR -->
 <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(event)">
@@ -1618,7 +1630,7 @@ function renderTires(){
   var lastRot=T.rotations.length?T.rotations[T.rotations.length-1]:null;
   if(lastRot){var since=S.odo-lastRot.odo;h+='<div style="margin-top:10px;font-size:12px;font-family:monospace;color:'+(since>=10000?'var(--r)':since>=8000?'var(--y)':'var(--mu2)')+'">Rotation: '+fn(since)+' km since last ('+fd(lastRot.date)+')'+(since>=10000?' — ROTATE NOW':since>=8000?' — soon':'')+'</div>';}
   h+='</div>';
-  h+='<div class="panel"><div class="ptitle">Tire Sets</div><div>'+T.sets.map(function(s){return '<span class="tire-chip'+(s.id===T.activeSet?' active':'')+'">'+(s.kind==='winter'?'❄️':s.kind==='allseason'?'🌦️':'☀️')+' '+escHtml(s.name)+(s.id===T.activeSet?' · ON CAR':'')+'</span>';}).join('')||'<span style="color:var(--mu);font-size:12px">none yet</span>'+'</div>'
+  h+='<div class="panel"><div class="ptitle">Tire Sets</div><div>'+(T.sets.length?T.sets.map(function(s){return '<span class="tire-chip'+(s.id===T.activeSet?' active':'')+'">'+(s.kind==='winter'?'❄️':s.kind==='allseason'?'🌦️':'☀️')+' '+escHtml(s.name)+(s.id===T.activeSet?' · ON CAR':'')+'</span>';}).join(''):'<span style="color:var(--mu);font-size:12px">none yet</span>')+'</div>'
     +'<button class="btn bs" onclick="openTireSet()">+ Add Tire Set</button>'
     +(T.sets.length>1?'<button class="btn bp" onclick="openTireSwap()">🔄 Log Seasonal Swap</button>':'')
     +'<button class="btn bs" onclick="openTread()">📏 Log Tread Depth</button>'
@@ -1813,6 +1825,9 @@ function openDataStorage(){
   Promise.all([pP,pE,idbKeys(IDB_KV).catch(function(){return [];})]).then(function(r){
     persisted=r[0];usage=r[1];
     var snaps=r[2].filter(function(k){return typeof k==='string'&&k.indexOf('snap:')===0;}).sort().reverse();
+    h+='<div class="stitle">App Version</div>';
+    h+='<div style="font-size:13px;line-height:1.9"><span class="stat-dot" style="background:var(--cy)"></span>Running <b style="font-family:monospace;color:var(--cy)">DoctorCar '+APP_VERSION+'</b></div>';
+    h+='<button class="btn bs" onclick="checkForUpdate(true)">↻ Check for latest version</button>';
     h+='<div class="stitle">Protection Status</div>';
     h+='<div style="font-size:13px;line-height:2">';
     h+='<div><span class="stat-dot" style="background:'+(persisted?'var(--g)':'var(--y)')+'"></span>'+(persisted?'Browser granted <b>persistent storage</b> — data is protected from eviction.':persisted===false?'Persistence not yet granted — <b>install the app to your home screen</b> to lock it in.':'Persistence status unknown on this browser.')+'</div>';
@@ -1946,10 +1961,51 @@ function applyLive(gsts,ts){
   renderFuelStations();
 }
 
+// ════════ VERSION & AUTO-UPDATE ════════
+var APP_VERSION='v7';
+var swReg=null;
+function setVerTag(t){var e=document.getElementById('verTag');if(e)e.textContent='DoctorCar '+APP_VERSION+(t?' · '+t:'');}
+function showUpdBar(){document.getElementById('updBar').classList.add('on');setVerTag('update ready');}
+function applyUpdate(){
+  var b=document.getElementById('updBar');if(b)b.querySelector('button').textContent='Updating…';
+  if(swReg&&swReg.waiting){swReg.waiting.postMessage('skipWaiting');}
+  else{location.reload();}
+}
+function checkForUpdate(manual){
+  setVerTag(manual?'checking…':'');
+  if(!swReg){if(manual)setVerTag('offline?');return;}
+  swReg.update().then(function(){
+    setTimeout(function(){
+      if(swReg.waiting)showUpdBar();
+      else if(manual)setVerTag('up to date ✓');
+    },800);
+  }).catch(function(){if(manual)setVerTag('check failed');});
+}
+if('serviceWorker' in navigator){
+  var refreshing=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    if(refreshing)return;refreshing=true;location.reload();
+  });
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+      swReg=reg;
+      if(reg.waiting&&navigator.serviceWorker.controller)showUpdBar();
+      reg.addEventListener('updatefound',function(){
+        var nw=reg.installing;if(!nw)return;
+        nw.addEventListener('statechange',function(){
+          if(nw.state==='installed'&&navigator.serviceWorker.controller)showUpdBar();
+        });
+      });
+      setInterval(function(){reg.update().catch(function(){});},60000); // hourly-ish poll while open
+    }).catch(function(){});
+  });
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible'&&swReg)swReg.update().catch(function(){});});
+}
+setVerTag('');
+
 // ════════ INIT ════════
 load();buildDrawer();renderCar();renderDash();
 requestPersistence();hydrateFromIDB();
-if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
 window.addEventListener('resize',function(){if(document.getElementById('view-home').classList.contains('on'))refreshAll();});
 </script>
 </body>
