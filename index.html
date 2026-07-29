@@ -342,7 +342,7 @@ textarea{resize:vertical;min-height:70px}
 <!-- TASKS VIEW -->
 <div class="view" id="view-tasks">
   <div class="pg on" style="padding-top:0">
-    <div class="ph"><div><h2>Tasks</h2><p>sorted by urgency</p></div></div>
+    <div class="ph"><div><h2>Tasks</h2><p>sorted by urgency</p></div><div id="odoChip" onclick="openCarEditor()" style="text-align:right;cursor:pointer"></div></div>
     <button class="add-task-btn" onclick="openTaskEditor(null)">+ Add Custom Task</button>
     <div id="allTasks"></div>
   </div>
@@ -791,7 +791,27 @@ function escHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 function status(it){if(!it.lKm&&!it.lDate)return'never';var kp=it.lKm&&it.iKm?(S.odo-it.lKm)/it.iKm:0;var mp=it.lDate&&it.iMo?moDiff(it.lDate)/it.iMo:0;var p=Math.max(kp,mp);if(p>=1)return'due';if(p>=.75)return'warn';return'ok';}
 function pct(it){if(!it.lKm&&!it.lDate)return 100;var kp=it.lKm&&it.iKm?(S.odo-it.lKm)/it.iKm:0;var mp=it.lDate&&it.iMo?moDiff(it.lDate)/it.iMo:0;return Math.min(Math.max(kp,mp)*100,100);}
 function barColor(p){if(p>=95)return'#f43f5e';if(p>=50)return'#fbbf24';return'#34d399';}
-function dueText(it){if(!it.lKm&&!it.lDate)return'Never serviced';var parts=[];if(it.lKm&&it.iKm){var kl=it.iKm-(S.odo-it.lKm);parts.push(kl<=0?fn(Math.abs(kl))+'km over':fn(kl)+'km');}if(it.lDate&&it.iMo){var ml=it.iMo-moDiff(it.lDate);parts.push(ml<=0?Math.abs(ml)+'mo over':ml+'mo');}return 'Due in: '+(parts.join(' / ')||'—');}
+function dueText(it){
+  if(!it.lKm&&!it.lDate)return'Never serviced';
+  var kl=(it.lKm&&it.iKm)?it.iKm-(S.odo-it.lKm):null;   // km left (negative = overdue)
+  var ml=(it.lDate&&it.iMo)?it.iMo-moDiff(it.lDate):null; // months left (negative = overdue)
+  var over=[];
+  if(kl!=null&&kl<0)over.push(fn(Math.abs(kl))+' km');
+  if(ml!=null&&ml<0)over.push(Math.abs(ml)+' mo');
+  if(over.length)return 'Overdue by '+over.join(' & ');
+  var rem=[];
+  if(kl!=null)rem.push(fn(kl)+' km');
+  if(ml!=null)rem.push(ml+' mo');
+  return 'Due in '+(rem.join(' or ')||'—');
+}
+// Guard against odometer typos (e.g. an extra digit) silently marking every
+// km-based task overdue. Confirms only on suspiciously large jumps.
+function odoJumpOK(o){
+  if(o>0&&S.odo>0&&o>S.odo+5000){
+    return confirm('Odometer '+fn(o)+' km is '+fn(o-S.odo)+' km above your current '+fn(S.odo)+' km.\n\nThat would mark km-based tasks overdue. Is '+fn(o)+' km correct?');
+  }
+  return true;
+}
 function sortedItems(){return [].concat(S.items).sort(function(a,b){var na=(!a.lKm&&!a.lDate)?1:0,nb=(!b.lKm&&!b.lDate)?1:0;if(na!==nb)return nb-na;return pct(b)-pct(a);});}
 function computeEff(){
   // Correct fuel-economy: accumulate distance & liters across partial fills,
@@ -951,6 +971,8 @@ function drawInsPrice(inR){var pts=S.fills.filter(function(f){return inR(f.date)
 
 // ════════ TASKS LIST ════════
 function renderAllTasks(){
+  var oc=document.getElementById('odoChip');
+  if(oc)oc.innerHTML='<div style="font-size:10px;font-family:monospace;color:var(--mu);text-transform:uppercase;letter-spacing:.5px">Current odometer ✎</div><div style="font-size:16px;font-weight:800;font-family:monospace;color:var(--cy)">'+fn(S.odo)+' km</div>';
   var el=document.getElementById('allTasks');
   el.innerHTML=sortedItems().map(function(it){var p=pct(it),st=status(it),col=barColor(p);var tc=st==='ok'?'tok':st==='warn'?'twn':st==='due'?'tdu':'tnv';var tl=st==='ok'?'OK':st==='warn'?'Soon':st==='due'?'Due!':'Never';return '<div class="flist-card" data-id="'+it.id+'"><div class="fc-top"><div class="fc-ico" style="background:'+it.col+'22">'+it.ico+'</div><div class="fc-info"><div class="fc-name">'+escHtml(it.name)+'</div><div class="fc-prod">'+escHtml((it.prod||'').split(' or ')[0])+'</div><div class="fc-due" style="color:'+col+'">'+dueText(it)+'</div></div><span class="stag '+tc+'">'+tl+'</span></div><div class="fc-bar"><div style="height:100%;border-radius:2px;width:'+p+'%;background:'+col+'"></div></div></div>';}).join('');
   el.querySelectorAll('.flist-card').forEach(function(c){c.onclick=function(){openDetail(c.getAttribute('data-id'));};});
@@ -1059,7 +1081,7 @@ function openDetail(id){
   document.getElementById('scrim2').classList.add('on');document.getElementById('sheet').classList.add('on');
 }
 function closeSheet(){document.getElementById('scrim2').classList.remove('on');document.getElementById('sheet').classList.remove('on');activeId=null;}
-function logSvc(){var d=document.getElementById('lDate').value,o=parseInt(document.getElementById('lOdo').value)||0,c=parseFloat(document.getElementById('lCost').value)||0,sp=parseFloat(document.getElementById('lShop').value)||0,n=document.getElementById('lNotes').value.trim();if(!d||!o){alert('Enter date and odometer.');return;}S.logs.push({id:Date.now().toString(),itemId:activeId,date:d,odometer:o,cost:c,shopPrice:sp,notes:n});var it=S.items.find(function(i){return i.id===activeId;});if(it){it.lKm=o;it.lDate=d;if(o>S.odo)S.odo=o;}save();closeSheet();refreshAll();}
+function logSvc(){var d=document.getElementById('lDate').value,o=parseInt(document.getElementById('lOdo').value)||0,c=parseFloat(document.getElementById('lCost').value)||0,sp=parseFloat(document.getElementById('lShop').value)||0,n=document.getElementById('lNotes').value.trim();if(!d||!o){alert('Enter date and odometer.');return;}if(!odoJumpOK(o))return;S.logs.push({id:Date.now().toString(),itemId:activeId,date:d,odometer:o,cost:c,shopPrice:sp,notes:n});var it=S.items.find(function(i){return i.id===activeId;});if(it){it.lKm=o;it.lDate=d;if(o>S.odo)S.odo=o;}save();closeSheet();refreshAll();}
 function delLog(lid){if(!confirm('Delete this log entry?'))return;S.logs=S.logs.filter(function(l){return l.id!==lid;});var it=S.items.find(function(i){return i.id===activeId;});if(it){var rem=S.logs.filter(function(l){return l.itemId===activeId;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});if(rem.length){it.lKm=rem[0].odometer;it.lDate=rem[0].date;}else{it.lKm=null;it.lDate=null;}}save();openDetail(activeId);refreshAll();}
 
 // ════════ CAR EDITOR ════════
@@ -1135,7 +1157,7 @@ function fillStationDatalist(){document.getElementById('stationList').innerHTML=
 function openFillup(){closeFab();document.getElementById('fDate').value=new Date().toISOString().split('T')[0];['fOdo','fQty','fPrice','fTotal','fNotes','fStation'].forEach(function(id){document.getElementById(id).value='';});document.getElementById('fPartial').checked=false;fillStationDatalist();document.getElementById('fillDlg').classList.add('on');}
 function closeFill(){document.getElementById('fillDlg').classList.remove('on');}
 document.getElementById('fillDlg').addEventListener('input',function(e){var q=parseFloat(document.getElementById('fQty').value)||0;var p=parseFloat(document.getElementById('fPrice').value)||0;var t=parseFloat(document.getElementById('fTotal').value)||0;if(e.target.id==='fQty'||e.target.id==='fPrice'){if(q&&p)document.getElementById('fTotal').value=Math.round(q*p);}if(e.target.id==='fTotal'){if(q&&t)document.getElementById('fPrice').value=(t/q).toFixed(1);}});
-function saveFillup(){var d=document.getElementById('fDate').value,o=parseInt(document.getElementById('fOdo').value)||0,q=parseFloat(document.getElementById('fQty').value)||0,p=parseFloat(document.getElementById('fPrice').value)||0,t=parseFloat(document.getElementById('fTotal').value)||0,partial=document.getElementById('fPartial').checked,notes=document.getElementById('fNotes').value.trim();if(!d||!o||!q){alert('Enter date, odometer and quantity.');return;}if(!t&&p)t=Math.round(q*p);if(!p&&t)p=t/q;S.fills.push({id:Date.now().toString(),date:d,odo:o,qty:q,price:p,total:t,partial:partial,station:document.getElementById('fStation').value.trim(),notes:notes});if(o>S.odo)S.odo=o;save();closeFill();refreshAll();}
+function saveFillup(){var d=document.getElementById('fDate').value,o=parseInt(document.getElementById('fOdo').value)||0,q=parseFloat(document.getElementById('fQty').value)||0,p=parseFloat(document.getElementById('fPrice').value)||0,t=parseFloat(document.getElementById('fTotal').value)||0,partial=document.getElementById('fPartial').checked,notes=document.getElementById('fNotes').value.trim();if(!d||!o||!q){alert('Enter date, odometer and quantity.');return;}if(!odoJumpOK(o))return;if(!t&&p)t=Math.round(q*p);if(!p&&t)p=t/q;S.fills.push({id:Date.now().toString(),date:d,odo:o,qty:q,price:p,total:t,partial:partial,station:document.getElementById('fStation').value.trim(),notes:notes});if(o>S.odo)S.odo=o;save();closeFill();refreshAll();}
 function openServicePicker(){closeFab();var sel=document.getElementById('svcPick');sel.innerHTML=sortedItems().map(function(it){return '<option value="'+it.id+'">'+it.ico+' '+escHtml(it.name)+'</option>';}).join('');document.getElementById('svcDlg').classList.add('on');}
 function closeSvcPick(){document.getElementById('svcDlg').classList.remove('on');}
 function openServiceFromPicker(){var id=document.getElementById('svcPick').value;closeSvcPick();openDetail(id);}
@@ -1682,6 +1704,7 @@ function openTireSwap(){
 function saveTireSwap(){
   var setId=document.getElementById('twSet').value,d=document.getElementById('twDate').value,o=parseInt(document.getElementById('twOdo').value)||0;
   if(!setId||!d||!o){alert('Fill everything in.');return;}
+  if(!odoJumpOK(o))return;
   S.tires.swaps.push({id:Date.now().toString(),date:d,odo:o,setId:setId});
   S.tires.activeSet=setId;if(o>S.odo)S.odo=o;
   save();closeDlg('tireSwapDlg');renderTires();
@@ -1726,6 +1749,7 @@ function decodeTireCode(){
 function saveRotation(){
   var d=document.getElementById('roDate').value,o=parseInt(document.getElementById('roOdo').value)||0;
   if(!d||!o){alert('Enter date and odometer.');return;}
+  if(!odoJumpOK(o))return;
   S.tires.rotations.push({id:Date.now().toString(),date:d,odo:o});if(o>S.odo)S.odo=o;
   save();closeDlg('rotDlg');renderTires();
 }
@@ -1999,7 +2023,7 @@ function searchThisArea(){
 }
 
 // ════════ VERSION & AUTO-UPDATE ════════
-var APP_VERSION='v8';
+var APP_VERSION='v9';
 var swReg=null;
 function setVerTag(t){var e=document.getElementById('verTag');if(e)e.textContent='DoctorCar '+APP_VERSION+(t?' · '+t:'');}
 function showUpdBar(){document.getElementById('updBar').classList.add('on');setVerTag('update ready');}
