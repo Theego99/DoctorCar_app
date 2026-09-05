@@ -547,6 +547,8 @@ textarea{resize:vertical;min-height:70px}
   <button class="btn bs" onclick="refreshLivePrices()">↻ Refresh live prices (gogo.gs)</button>
   <button class="btn bs" onclick="clearFuelFilter()">Clear filters</button>
   <button class="btn bs" onclick="closeFuelFilter()">Cancel</button>
+  <div class="stitle" style="margin-top:16px">Advanced</div>
+  <div class="fg"><label>Custom price proxy URL (optional)</label><input type="text" id="fltProxy" placeholder="https://your-worker.workers.dev/?url=" autocapitalize="off" autocomplete="off"><div style="font-size:10px;color:var(--mu);font-family:monospace;line-height:1.6;margin-top:4px">Live prices come from gogo.gs via public relay servers. If they're flaky, paste your own proxy (e.g. a free Cloudflare Worker) here for rock-solid prices. Leave blank to use the built-in relays. Use {url} where the target goes, or it's appended.</div></div>
 </div></div>
 
 <!-- COST EDITOR -->
@@ -1436,6 +1438,7 @@ function openFuelFilter(){
   document.getElementById('fltFuel').value=fuelFilter.fuel;
   document.getElementById('fltPrice').value=fuelFilter.maxPrice||'';
   document.getElementById('fltRadius').value=fuelFilter.radius||5;
+  document.getElementById('fltProxy').value=customProxy();
   document.getElementById('fmFilterDlg').classList.add('on');
 }
 function closeFuelFilter(){document.getElementById('fmFilterDlg').classList.remove('on');}
@@ -1445,8 +1448,13 @@ function applyFuelFilter(){
   fuelFilter.fuel=document.getElementById('fltFuel').value;
   fuelFilter.maxPrice=parseInt(document.getElementById('fltPrice').value)||null;
   fuelFilter.radius=Math.max(1,Math.min(30,parseInt(document.getElementById('fltRadius').value)||5));
+  var oldProxy=customProxy(),newProxy=document.getElementById('fltProxy').value.trim();
+  try{if(newProxy)localStorage.setItem('doctorcar_proxy',newProxy);else localStorage.removeItem('doctorcar_proxy');}catch(e){}
+  if(newProxy!==oldProxy)lastGoodProxy=null; // reset so the new proxy is tried
   saveFuelFilter();updateFilterBadge();closeFuelFilter();
-  if(fuelFilter.radius!==oldRadius&&fuelUserLoc)fetchStations(fuelUserLoc.lat,fuelUserLoc.lon);
+  var c=fuelSearchCenter||fuelUserLoc;
+  if(newProxy!==oldProxy&&c){try{localStorage.removeItem('doctorcar_gogo');}catch(e){}fetchLivePrices(c.lat,c.lon,true);}
+  else if(fuelFilter.radius!==oldRadius&&c)fetchStations(c.lat,c.lon);
   else renderFuelStations();
 }
 function clearFuelFilter(){
@@ -1894,15 +1902,32 @@ function restoreSnapshot(key){
   }).catch(function(){alert('Could not read snapshot.');});
 }
 
-// ════════ LIVE FUEL PRICES (gogo.gs via r.jina.ai + GSI geocoding) ════════
+// ════════ LIVE FUEL PRICES (gogo.gs crowd prices + GSI geocoding) ════════
 // Pipeline: GPS → GSI reverse-geocode → JIS city code → gogo.gs station list for
-// that city (fetched through the CORS-friendly r.jina.ai reader) → parse names,
-// addresses, hours & crowd-reported prices → GSI address-search geocodes each
-// station → merge onto the OSM map stations (real price wins, marked LIVE).
-var liveFetching=false,liveInfo=null;
+// that city → parse names, addresses, hours & crowd-reported prices → GSI
+// address-search geocodes each → merge onto the OSM map (real price wins, LIVE).
+// gogo.gs sends no CORS header, so the browser reaches it through a proxy. Public
+// proxies come and go, so we try a CHAIN of them (plus an optional user-supplied
+// one) and use whichever returns parseable prices — no single point of failure.
+var liveFetching=false,liveInfo=null,lastGoodProxy=null;
 var GEO_CACHE={};try{GEO_CACHE=JSON.parse(localStorage.getItem('doctorcar_geo')||'{}');}catch(e){}
 function fetchT(url,ms){return Promise.race([fetch(url),new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})]);}
 function gogoCache(){try{return JSON.parse(localStorage.getItem('doctorcar_gogo')||'null');}catch(e){return null;}}
+function customProxy(){try{return (localStorage.getItem('doctorcar_proxy')||'').trim();}catch(e){return '';}}
+// each proxy: {id, kind:'html'|'md', wrap? , make(gogoUrl)->fetchUrl}
+var LIVE_PROXIES=[
+  {id:'allorigins',kind:'html',make:function(u){return 'https://api.allorigins.win/raw?url='+encodeURIComponent(u);}},
+  {id:'corsproxy',kind:'html',make:function(u){return 'https://corsproxy.io/?url='+encodeURIComponent(u);}},
+  {id:'codetabs',kind:'html',make:function(u){return 'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(u);}},
+  {id:'allorigins2',kind:'html',wrap:true,make:function(u){return 'https://api.allorigins.win/get?url='+encodeURIComponent(u);}},
+  {id:'thingproxy',kind:'html',make:function(u){return 'https://thingproxy.freeboard.io/fetch/'+u;}},
+  {id:'jina',kind:'md',make:function(u){return 'https://r.jina.ai/'+u;}}
+];
+function proxyList(){
+  var list=[],cp=customProxy();
+  if(cp)list.push({id:'custom',kind:'html',make:function(u){return cp.indexOf('{url}')>=0?cp.replace('{url}',encodeURIComponent(u)):cp+encodeURIComponent(u);}});
+  return list.concat(LIVE_PROXIES);
+}
 function refreshLivePrices(){closeFuelFilter();var c=fuelSearchCenter||fuelUserLoc;if(c)fetchLivePrices(c.lat,c.lon,true);else fmStatus('⚠ Need your location first.');}
 function fetchLivePrices(lat,lon,force){
   if(liveFetching)return;liveFetching=true;
@@ -1936,22 +1961,40 @@ function fetchLivePrices(lat,lon,force){
     if(!fuelStations.some(function(s){return s.live;}))fmStatus('⚠ Live prices unavailable ('+e.message+'). Stations shown from map data.');
   });
 }
+// fetch one gogo page, trying each proxy until one returns parseable stations
+function fetchGogoPage(muni,p){
+  var gogoUrl='https://gogo.gs/search?ac='+muni+(p>1?'&page='+p:'');
+  var proxies=proxyList();
+  if(lastGoodProxy){var lg=lastGoodProxy;proxies=proxies.filter(function(x){return x.id!==lg.id;});proxies.unshift(lg);}
+  var i=0;
+  function tryNext(){
+    if(i>=proxies.length)return Promise.resolve([]);
+    var px=proxies[i++];
+    return fetchT(px.make(gogoUrl),25000)
+      .then(function(r){if(!r.ok)throw 0;return r.text();})
+      .then(function(txt){
+        if(px.wrap){try{txt=JSON.parse(txt).contents||'';}catch(e){}}
+        var sts=px.kind==='md'?parseGogoMd(txt):parseGogoHtml(txt);
+        if(sts.length){lastGoodProxy=px;return sts;}
+        throw 0;
+      })
+      .catch(function(){return tryNext();});
+  }
+  return tryNext();
+}
 function fetchGogoPages(muni,maxPages){
   var all=[],seen={};
-  function one(p){
-    return fetchT('https://r.jina.ai/https://gogo.gs/search/?ac='+muni+(p>1?'%26page='+p:''),60000)
-      .then(function(r){if(!r.ok)throw new Error('proxy '+r.status);return r.text();})
-      .then(function(md){
-        var sts=parseGogoMd(md),added=0;
-        sts.forEach(function(s){if(!seen[s.sid]){seen[s.sid]=1;all.push(s);added++;}});
-        var priced=all.filter(function(s){return s.cash.r||s.member.r;}).length;
-        fmStatus('💹 gogo.gs: '+priced+' priced · '+all.length+' stations (page '+p+')…');
-        if(p<maxPages&&added>0)return one(p+1); // keep paging while new stations appear
-        return all;
-      })
-      .catch(function(){return all;}); // a failed page shouldn't kill earlier pages
+  function page(p){
+    return fetchGogoPage(muni,p).then(function(sts){
+      var added=0;
+      sts.forEach(function(s){if(!seen[s.sid]){seen[s.sid]=1;all.push(s);added++;}});
+      var priced=all.filter(function(s){return s.cash&&s.cash.r;}).length;
+      fmStatus('💹 gogo.gs: '+priced+' priced · '+all.length+' stations (page '+p+')…');
+      if(p<maxPages&&added>0)return page(p+1); // keep paging while new stations appear
+      return all;
+    });
   }
-  return one(1);
+  return page(1);
 }
 function parseGogoMd(md){
   var out=[],blocks=md.split(/#####\s*\[/).slice(1);
@@ -1972,6 +2015,31 @@ function parseGogoMd(md){
     var member=mi>=0?tbl(b.slice(mi,mi+500)):{r:null,h:null,d:null};
     out.push({sid:sid,name:name,addr:addr,oh:oh,self:/self_l\.png/.test(b),cash:cash,member:member});
   });
+  return out;
+}
+// Parse gogo.gs raw HTML (the mobile layout: one 5-column price table per shop —
+// 油種 | 現金 | 確認日 | 会員 | 確認日). Robust to a CORS proxy returning the page as-is.
+function parseGogoHtml(html){
+  var out=[],seen={},re=/<a[^>]*href="[^"]*\/shop\/(\d+)[^"]*"[^>]*>([^<]+)<\/a>/g,m,marks=[];
+  while((m=re.exec(html))){marks.push({sid:m[1],name:m[2].trim(),idx:m.index});}
+  for(var i=0;i<marks.length;i++){
+    var sid=marks[i].sid;if(seen[sid])continue;
+    var block=html.slice(marks[i].idx,(i+1<marks.length?marks[i+1].idx:marks[i].idx+3000));
+    if(block.indexOf('油種')<0&&block.indexOf('レギュラー')<0)continue;
+    seen[sid]=1;
+    var addr=(block.match(/(?:北海道|東京都|大阪府|京都府|[^\s<>]{2,3}県)[^<\n]{2,40}/)||[null])[0];
+    var oh='';if(/24時間/.test(block))oh='24/7';else{var hm=block.match(/(\d{1,2}:\d{2})\s*[-~]\s*(\d{1,2}:\d{2})/);if(hm)oh=hm[1]+'-'+hm[2];}
+    function cell(fuel){
+      var rx=new RegExp('<td>\\s*'+fuel+'\\s*</td>\\s*<td[^>]*>\\s*([\\d.]+|-)\\s*</td>\\s*<td[^>]*>(?:\\s*<span[^>]*>)?\\s*([\\d/]+|-)[\\s\\S]{0,140}?<td[^>]*>\\s*([\\d.]+|-)\\s*</td>\\s*<td[^>]*>(?:\\s*<span[^>]*>)?\\s*([\\d/]+|-)');
+      var mm=block.match(rx);
+      if(mm)return{cash:mm[1]!=='-'?{v:parseFloat(mm[1]),d:mm[2]}:null,member:mm[3]!=='-'?{v:parseFloat(mm[3]),d:mm[4]}:null};
+      var m2=block.match(new RegExp('<td>\\s*'+fuel+'\\s*</td>\\s*<td[^>]*>\\s*([\\d.]+)'));
+      return m2?{cash:{v:parseFloat(m2[1]),d:''},member:null}:{cash:null,member:null};
+    }
+    var R=cell('レギュラー'),H=cell('ハイオク'),D=cell('軽油');
+    out.push({sid:sid,name:marks[i].name,addr:addr,oh:oh,self:/セルフ|self/i.test(block),
+      cash:{r:R.cash,h:H.cash,d:D.cash},member:{r:R.member,h:H.member,d:D.member}});
+  }
   return out;
 }
 function geocodeAll(sts){
@@ -2023,7 +2091,7 @@ function searchThisArea(){
 }
 
 // ════════ VERSION & AUTO-UPDATE ════════
-var APP_VERSION='v9';
+var APP_VERSION='v10';
 var swReg=null;
 function setVerTag(t){var e=document.getElementById('verTag');if(e)e.textContent='DoctorCar '+APP_VERSION+(t?' · '+t:'');}
 function showUpdBar(){document.getElementById('updBar').classList.add('on');setVerTag('update ready');}
